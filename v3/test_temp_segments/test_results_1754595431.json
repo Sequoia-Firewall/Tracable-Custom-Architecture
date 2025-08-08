@@ -1,0 +1,1595 @@
+{
+  "start_time": 1754595415.3854487,
+  "phase_results": {
+    "phase_1": {
+      "subtests": {
+        "1.1_initialization": {
+          "status": "passed",
+          "time": 0.001600503921508789,
+          "details": {
+            "dimensions": 4,
+            "learning_rate": 0.05,
+            "node_registry_size": 0,
+            "demo_mode": true,
+            "has_connections": true,
+            "connection_methods": [
+              "connect_nodes"
+            ]
+          }
+        },
+        "1.2_node_factory": {
+          "Judge": {
+            "status": "passed",
+            "node_id": "test_judge_1",
+            "has_process_method": true
+          },
+          "Controller": {
+            "status": "passed",
+            "node_id": "test_controller_1",
+            "has_process_method": true
+          },
+          "Splitter": {
+            "status": "passed",
+            "node_id": "test_splitter_1",
+            "has_process_method": false
+          },
+          "Computational": {
+            "status": "passed",
+            "node_id": "test_computational_1",
+            "has_process_method": false
+          },
+          "Reviewer": {
+            "status": "passed",
+            "node_id": "test_reviewer_1",
+            "has_process_method": false
+          },
+          "Retainer": {
+            "status": "passed",
+            "node_id": "test_retainer_1",
+            "has_process_method": true
+          },
+          "Handler": {
+            "status": "passed",
+            "node_id": "test_handler_1",
+            "has_process_method": true
+          }
+        },
+        "1.3_connectivity": {
+          "status": "passed",
+          "time": 0.007807731628417969,
+          "details": {
+            "judge_id": 0,
+            "splitter_id": 1,
+            "connection_created": true,
+            "total_nodes": 2
+          }
+        }
+      },
+      "total_time": 0.1315140724182129,
+      "status": "passed"
+    },
+    "phase_2": {
+      "subtests": {
+        "2.1_segment_creation": {
+          "segment_1": {
+            "status": "passed",
+            "segment_id": 1,
+            "dimensions": 4,
+            "dimensional_assignment": {
+              "0": 1,
+              "1": -1,
+              "2": 1,
+              "3": -1
+            },
+            "node_count": 20,
+            "node_types": {
+              "judges": 4,
+              "splitters": 4,
+              "computational": 4,
+              "retainers": 4,
+              "reviewers": 4
+            }
+          },
+          "segment_2": {
+            "status": "passed",
+            "segment_id": 2,
+            "dimensions": 4,
+            "dimensional_assignment": {
+              "0": -1,
+              "1": 1,
+              "2": -1,
+              "3": 1
+            },
+            "node_count": 20,
+            "node_types": {
+              "judges": 4,
+              "splitters": 4,
+              "computational": 4,
+              "retainers": 4,
+              "reviewers": 4
+            }
+          },
+          "segment_3": {
+            "status": "passed",
+            "segment_id": 3,
+            "dimensions": 4,
+            "dimensional_assignment": {
+              "0": 1,
+              "1": -1,
+              "2": 1,
+              "3": -1
+            },
+            "node_count": 20,
+            "node_types": {
+              "judges": 4,
+              "splitters": 4,
+              "computational": 4,
+              "retainers": 4,
+              "reviewers": 4
+            }
+          }
+        },
+        "2.2_node_distribution": {
+          "segment_1": {
+            "total_nodes": 20,
+            "distribution": {
+              "judges": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "splitters": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "computational": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "retainers": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "reviewers": {
+                "count": 4,
+                "percentage": 20.0
+              }
+            },
+            "has_all_types": true
+          },
+          "segment_2": {
+            "total_nodes": 20,
+            "distribution": {
+              "judges": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "splitters": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "computational": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "retainers": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "reviewers": {
+                "count": 4,
+                "percentage": 20.0
+              }
+            },
+            "has_all_types": true
+          },
+          "segment_3": {
+            "total_nodes": 20,
+            "distribution": {
+              "judges": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "splitters": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "computational": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "retainers": {
+                "count": 4,
+                "percentage": 20.0
+              },
+              "reviewers": {
+                "count": 4,
+                "percentage": 20.0
+              }
+            },
+            "has_all_types": true
+          }
+        },
+        "2.3_spatial_organization": {
+          "segment_1": {
+            "spatial_zones": 5,
+            "zone_occupancy": {
+              "judge_zone": {
+                "capacity": 20,
+                "occupancy": 4,
+                "utilization": 20.0
+              },
+              "splitter_zone": {
+                "capacity": 40,
+                "occupancy": 4,
+                "utilization": 10.0
+              },
+              "computational_zone": {
+                "capacity": 100,
+                "occupancy": 0,
+                "utilization": 0.0
+              },
+              "retainer_zone": {
+                "capacity": 50,
+                "occupancy": 4,
+                "utilization": 8.0
+              },
+              "reviewer_zone": {
+                "capacity": 10,
+                "occupancy": 4,
+                "utilization": 40.0
+              }
+            },
+            "dimensional_coherence": true,
+            "position_validation": {
+              "passed": 20,
+              "total": 20
+            }
+          },
+          "segment_2": {
+            "spatial_zones": 5,
+            "zone_occupancy": {
+              "judge_zone": {
+                "capacity": 20,
+                "occupancy": 4,
+                "utilization": 20.0
+              },
+              "splitter_zone": {
+                "capacity": 40,
+                "occupancy": 4,
+                "utilization": 10.0
+              },
+              "computational_zone": {
+                "capacity": 100,
+                "occupancy": 0,
+                "utilization": 0.0
+              },
+              "retainer_zone": {
+                "capacity": 50,
+                "occupancy": 4,
+                "utilization": 8.0
+              },
+              "reviewer_zone": {
+                "capacity": 10,
+                "occupancy": 4,
+                "utilization": 40.0
+              }
+            },
+            "dimensional_coherence": true,
+            "position_validation": {
+              "passed": 20,
+              "total": 20
+            }
+          },
+          "segment_3": {
+            "spatial_zones": 5,
+            "zone_occupancy": {
+              "judge_zone": {
+                "capacity": 20,
+                "occupancy": 4,
+                "utilization": 20.0
+              },
+              "splitter_zone": {
+                "capacity": 40,
+                "occupancy": 4,
+                "utilization": 10.0
+              },
+              "computational_zone": {
+                "capacity": 100,
+                "occupancy": 0,
+                "utilization": 0.0
+              },
+              "retainer_zone": {
+                "capacity": 50,
+                "occupancy": 4,
+                "utilization": 8.0
+              },
+              "reviewer_zone": {
+                "capacity": 10,
+                "occupancy": 4,
+                "utilization": 40.0
+              }
+            },
+            "dimensional_coherence": true,
+            "position_validation": {
+              "passed": 20,
+              "total": 20
+            }
+          }
+        }
+      },
+      "total_time": 0.7578568458557129,
+      "status": "passed"
+    },
+    "phase_3": {
+      "subtests": {
+        "3.1_learning_creation": {
+          "segment_1": {
+            "status": "passed",
+            "trainer_count": 5,
+            "trainer_types": [
+              "judges",
+              "splitters",
+              "computational",
+              "retainers",
+              "reviewers"
+            ],
+            "device": "cpu",
+            "config": {
+              "learning_rate": 0.001,
+              "batch_size": 32,
+              "max_epochs": 5,
+              "early_stopping_patience": 10,
+              "gradient_clipping": 1.0,
+              "spatial_learning_rate": 0.0001,
+              "position_regularization": 0.01,
+              "connection_regularization": 0.001,
+              "spatial_update_frequency": 5,
+              "judge_learning_rate": 0.001,
+              "splitter_learning_rate": 0.0005,
+              "computational_learning_rate": 0.002,
+              "retainer_learning_rate": 0.0008,
+              "reviewer_learning_rate": 0.0012,
+              "enable_attention_training": true,
+              "enable_meta_learning": false,
+              "enable_contrastive_learning": true,
+              "enable_spatial_adaptation": true,
+              "enable_connection_pruning": true,
+              "enable_node_evolution": true,
+              "gradient_accumulation_steps": 1,
+              "mixed_precision": true,
+              "checkpoint_frequency": 10,
+              "validation_split": 0.2,
+              "test_split": 0.1,
+              "cross_validation_folds": 5,
+              "min_performance_threshold": 0.6,
+              "evolution_threshold_computational_to_judge": 0.83,
+              "evolution_cooldown_epochs": 50,
+              "evolution_stability_requirement": 3,
+              "max_evolutionary_changes_per_segment": 3,
+              "evolution_threshold": 0.8
+            }
+          },
+          "segment_2": {
+            "status": "passed",
+            "trainer_count": 5,
+            "trainer_types": [
+              "judges",
+              "splitters",
+              "computational",
+              "retainers",
+              "reviewers"
+            ],
+            "device": "cpu",
+            "config": {
+              "learning_rate": 0.001,
+              "batch_size": 32,
+              "max_epochs": 5,
+              "early_stopping_patience": 10,
+              "gradient_clipping": 1.0,
+              "spatial_learning_rate": 0.0001,
+              "position_regularization": 0.01,
+              "connection_regularization": 0.001,
+              "spatial_update_frequency": 5,
+              "judge_learning_rate": 0.001,
+              "splitter_learning_rate": 0.0005,
+              "computational_learning_rate": 0.002,
+              "retainer_learning_rate": 0.0008,
+              "reviewer_learning_rate": 0.0012,
+              "enable_attention_training": true,
+              "enable_meta_learning": false,
+              "enable_contrastive_learning": true,
+              "enable_spatial_adaptation": true,
+              "enable_connection_pruning": true,
+              "enable_node_evolution": true,
+              "gradient_accumulation_steps": 1,
+              "mixed_precision": true,
+              "checkpoint_frequency": 10,
+              "validation_split": 0.2,
+              "test_split": 0.1,
+              "cross_validation_folds": 5,
+              "min_performance_threshold": 0.6,
+              "evolution_threshold_computational_to_judge": 0.83,
+              "evolution_cooldown_epochs": 50,
+              "evolution_stability_requirement": 3,
+              "max_evolutionary_changes_per_segment": 3,
+              "evolution_threshold": 0.8
+            }
+          },
+          "segment_3": {
+            "status": "passed",
+            "trainer_count": 5,
+            "trainer_types": [
+              "judges",
+              "splitters",
+              "computational",
+              "retainers",
+              "reviewers"
+            ],
+            "device": "cpu",
+            "config": {
+              "learning_rate": 0.001,
+              "batch_size": 32,
+              "max_epochs": 5,
+              "early_stopping_patience": 10,
+              "gradient_clipping": 1.0,
+              "spatial_learning_rate": 0.0001,
+              "position_regularization": 0.01,
+              "connection_regularization": 0.001,
+              "spatial_update_frequency": 5,
+              "judge_learning_rate": 0.001,
+              "splitter_learning_rate": 0.0005,
+              "computational_learning_rate": 0.002,
+              "retainer_learning_rate": 0.0008,
+              "reviewer_learning_rate": 0.0012,
+              "enable_attention_training": true,
+              "enable_meta_learning": false,
+              "enable_contrastive_learning": true,
+              "enable_spatial_adaptation": true,
+              "enable_connection_pruning": true,
+              "enable_node_evolution": true,
+              "gradient_accumulation_steps": 1,
+              "mixed_precision": true,
+              "checkpoint_frequency": 10,
+              "validation_split": 0.2,
+              "test_split": 0.1,
+              "cross_validation_folds": 5,
+              "min_performance_threshold": 0.6,
+              "evolution_threshold_computational_to_judge": 0.83,
+              "evolution_cooldown_epochs": 50,
+              "evolution_stability_requirement": 3,
+              "max_evolutionary_changes_per_segment": 3,
+              "evolution_threshold": 0.8
+            }
+          }
+        }
+      },
+      "total_time": 0.0841522216796875,
+      "status": "passed"
+    },
+    "phase_4": {
+      "subtests": {
+        "4.1_training": {
+          "segment_1": {
+            "status": "passed",
+            "training_time": 11.626161098480225,
+            "final_loss": 0.0,
+            "epochs_completed": 0,
+            "node_trainers_used": 5,
+            "training_details": {
+              "enhanced_learning": {},
+              "spatial_adaptations": [],
+              "connection_updates": []
+            }
+          },
+          "segment_2": {
+            "status": "passed",
+            "training_time": 0.7737538814544678,
+            "final_loss": 0.0,
+            "epochs_completed": 0,
+            "node_trainers_used": 5,
+            "training_details": {
+              "enhanced_learning": {},
+              "spatial_adaptations": [],
+              "connection_updates": []
+            }
+          },
+          "segment_3": {
+            "status": "passed",
+            "training_time": 0.7120296955108643,
+            "final_loss": 0.0,
+            "epochs_completed": 0,
+            "node_trainers_used": 5,
+            "training_details": {
+              "enhanced_learning": {},
+              "spatial_adaptations": [],
+              "connection_updates": []
+            }
+          }
+        },
+        "4.2_trainers": {
+          "judges": {
+            "status": "passed",
+            "epoch_time": 0.0,
+            "nodes_tested": 3,
+            "total_nodes_available": 6,
+            "epoch_results": {
+              "loss": 0.0748,
+              "nodes_trained": 3,
+              "attention_patterns_updated": 3,
+              "avg_attention_performance": 0.9140908444955566
+            }
+          },
+          "splitters": {
+            "status": "passed",
+            "epoch_time": 0.0,
+            "nodes_tested": 3,
+            "total_nodes_available": 4,
+            "epoch_results": {
+              "loss": 0.0392,
+              "nodes_trained": 3,
+              "connections_updated": 0,
+              "avg_routing_efficiency": 0.51
+            }
+          },
+          "computational": {
+            "status": "passed",
+            "epoch_time": 0.0,
+            "nodes_tested": 2,
+            "total_nodes_available": 2,
+            "epoch_results": {
+              "loss": 0.0,
+              "nodes_trained": 2,
+              "avg_feature_quality": 1.0,
+              "feature_improvements": 2
+            }
+          },
+          "retainers": {
+            "status": "passed",
+            "epoch_time": 0.0,
+            "nodes_tested": 3,
+            "total_nodes_available": 4,
+            "epoch_results": {
+              "loss": 0.049139999999999996,
+              "nodes_trained": 3,
+              "memory_efficiency": 1.0,
+              "memory_updates": 3
+            }
+          },
+          "reviewers": {
+            "status": "passed",
+            "epoch_time": 0.0,
+            "nodes_tested": 3,
+            "total_nodes_available": 4,
+            "epoch_results": {
+              "loss": 0.024500000000000004,
+              "nodes_trained": 3,
+              "review_quality": 0.65,
+              "standards_updated": 0
+            }
+          }
+        },
+        "4.3_spatial_optimization": {
+          "segment_1": {
+            "status": "passed",
+            "optimization_time": 0.0010814666748046875,
+            "positions_updated": 12,
+            "improvement": 0.2333333333333333,
+            "has_spatial_optimizer": true
+          }
+        },
+        "4.4_connection_optimization": {
+          "segment_1": {
+            "status": "passed",
+            "optimization_time": 0.0010712146759033203,
+            "connections_pruned": 0,
+            "connections_strengthened": 0,
+            "efficiency_gain": 0.0,
+            "has_connection_optimizer": true
+          }
+        },
+        "4.5_evolution": {
+          "segment_1": {
+            "status": "passed",
+            "evolution_time": 0.06391286849975586,
+            "has_evolution_methods": true,
+            "evolution_candidates": 1,
+            "node_evolutions": 3,
+            "evolution_cooldowns": 3
+          }
+        }
+      },
+      "total_time": 13.181047439575195,
+      "status": "passed"
+    },
+    "phase_5": {
+      "subtests": {
+        "5.1_cross_segment": {
+          "segment_communication": {
+            "status": "passed",
+            "segment_1_nodes": 20,
+            "segment_2_nodes": 20,
+            "brain_total_nodes": 62,
+            "communication_possible": true
+          }
+        },
+        "5.2_workflow": {
+          "end_to_end": {
+            "status": "passed",
+            "workflow_time": 0.06077742576599121,
+            "components_integrated": {
+              "brain_nexus": true,
+              "segments": true,
+              "learning_system": true,
+              "node_trainers": true
+            },
+            "workflow_successful": true
+          }
+        }
+      },
+      "total_time": 0.06175422668457031,
+      "status": "passed"
+    },
+    "phase_6": {
+      "subtests": {
+        "6.1_persistence": {
+          "state_management": {
+            "status": "passed",
+            "save_time": 0.0031125545501708984,
+            "load_time": 0.03612351417541504,
+            "state_file_size": 3619,
+            "state_valid": true,
+            "components_saved": 6
+          }
+        },
+        "6.2_integrity": {
+          "segment_1": {
+            "status": "passed",
+            "integrity_score": 1.0,
+            "checks": {
+              "has_training_state": true,
+              "active_task": true,
+              "current_epoch": true,
+              "training_history": true,
+              "node_performance": true
+            },
+            "training_state_components": 9
+          },
+          "segment_2": {
+            "status": "passed",
+            "integrity_score": 1.0,
+            "checks": {
+              "has_training_state": true,
+              "active_task": true,
+              "current_epoch": true,
+              "training_history": true,
+              "node_performance": true
+            },
+            "training_state_components": 9
+          },
+          "segment_3": {
+            "status": "passed",
+            "integrity_score": 1.0,
+            "checks": {
+              "has_training_state": true,
+              "active_task": true,
+              "current_epoch": true,
+              "training_history": true,
+              "node_performance": true
+            },
+            "training_state_components": 9
+          }
+        }
+      },
+      "total_time": 0.04113411903381348,
+      "status": "passed"
+    },
+    "phase_7": {
+      "subtests": {
+        "7.1_performance": {
+          "brain_nexus": {
+            "status": "passed",
+            "node_creation_time": 0.012019872665405273,
+            "node_retrieval_time": 0.0,
+            "total_nodes": 63,
+            "operations_per_second": {
+              "node_creation": 83.19555687791332,
+              "node_retrieval": Infinity
+            }
+          },
+          "segment_learning": {
+            "status": "passed",
+            "training_throughput": 0.061670780181884766,
+            "samples_per_second": 16.21513457508911,
+            "node_trainers_count": 5,
+            "segment_nodes_count": 20,
+            "training_successful": true
+          }
+        },
+        "7.2_resources": {
+          "memory_usage": {
+            "status": "passed",
+            "rss_memory_mb": 4573.953125,
+            "vms_memory_mb": 6032.39453125,
+            "cpu_percent": 0.0,
+            "gc_collections": {
+              "gen0": 10,
+              "gen1": 0,
+              "gen2": 0
+            }
+          }
+        }
+      },
+      "total_time": 0.49767160415649414,
+      "status": "passed"
+    },
+    "phase_8": {
+      "subtests": {
+        "8.1_text_modality": {
+          "text_processing": {
+            "status": "passed",
+            "processing_time": 0.2679133415222168,
+            "samples_processed": 5,
+            "throughput": 18.66275106566641,
+            "final_loss": 0.0,
+            "text_embeddings_generated": true
+          }
+        },
+        "8.2_general_modality": {
+          "general_processing": {
+            "status": "passed",
+            "processing_time": 0.01731419563293457,
+            "samples_processed": 4,
+            "throughput": 231.02430426460666,
+            "final_loss": 0.0,
+            "numerical_features_processed": true
+          }
+        },
+        "8.3_consistency": {
+          "modality_consistency": {
+            "status": "passed",
+            "text_modality_working": true,
+            "general_modality_working": true,
+            "consistency_score": 1.0,
+            "modalities_tested": [
+              "text",
+              "general"
+            ]
+          }
+        }
+      },
+      "total_time": 0.2872626781463623,
+      "status": "passed"
+    },
+    "phase_9": {
+      "subtests": {
+        "9.1_rl_experiences": {
+          "experience_creation": {
+            "status": "passed",
+            "experiences_created": 5,
+            "experience_types": [
+              "state-action-reward"
+            ],
+            "episode_completion": true,
+            "metadata_included": false
+          }
+        },
+        "9.2_rl_training": {
+          "rl_training": {
+            "status": "skipped",
+            "reason": "RL methods not available in current learner implementation"
+          }
+        }
+      },
+      "total_time": 0.004924774169921875,
+      "status": "passed"
+    },
+    "phase_10": {
+      "subtests": {
+        "10.1_attention": {
+          "attention_mechanisms": {
+            "status": "failed",
+            "error": "'dict' object has no attribute 'size'"
+          }
+        },
+        "10.2_embeddings": {
+          "embedding_validation": {
+            "status": "passed",
+            "node_types_with_embeddings": 0,
+            "embedding_dimensions": {},
+            "consistent_embeddings": true,
+            "total_node_types": 5
+          }
+        }
+      },
+      "total_time": 0.0,
+      "status": "passed"
+    },
+    "phase_11": {
+      "subtests": {
+        "11.1_connections": {
+          "connection_analysis": {
+            "status": "passed",
+            "analysis": {
+              "total_nodes": 63,
+              "node_types": {},
+              "connection_density": 0.0,
+              "average_degree": 0.0,
+              "clustering_coefficient": 0.0
+            },
+            "network_metrics_available": true
+          }
+        },
+        "11.2_spatial": {
+          "spatial_distribution": {
+            "status": "passed",
+            "segments_analyzed": 3,
+            "spatial_metrics": {
+              "segment_1": {
+                "segment_id": 1,
+                "spatial_zones": 5,
+                "node_positions": {
+                  "Judge": [
+                    [
+                      1.0,
+                      -0.19,
+                      0.19,
+                      -0.19
+                    ],
+                    [
+                      0.19,
+                      -1.0,
+                      0.19,
+                      -0.19
+                    ],
+                    [
+                      0.19,
+                      -0.19,
+                      1.0,
+                      -0.19
+                    ],
+                    [
+                      0.19,
+                      -0.19,
+                      0.19,
+                      -1.0
+                    ],
+                    [
+                      1.6300000000000001,
+                      -0.55,
+                      0.6850000000000002,
+                      -0.55
+                    ],
+                    [
+                      0.6850000000000002,
+                      -1.265,
+                      0.6850000000000002,
+                      -0.5
+                    ],
+                    [
+                      0.6850000000000002,
+                      -0.55,
+                      1.6300000000000001,
+                      -0.55
+                    ]
+                  ],
+                  "Splitter": [
+                    [
+                      2.1199999999999983,
+                      -0.15099999999999997,
+                      0.29600000000000004,
+                      -0.15099999999999997
+                    ],
+                    [
+                      0.29600000000000004,
+                      -1.88,
+                      0.29600000000000004,
+                      -0.15099999999999997
+                    ],
+                    [
+                      0.29600000000000004,
+                      -0.15099999999999997,
+                      2.1199999999999983,
+                      -0.15099999999999997
+                    ],
+                    [
+                      0.29600000000000004,
+                      -0.15099999999999997,
+                      0.29600000000000004,
+                      -1.88
+                    ]
+                  ],
+                  "Computational": [
+                    [
+                      1.0650000000000004,
+                      -0.5,
+                      1.0650000000000004,
+                      -0.8849999999999996
+                    ]
+                  ],
+                  "Reviewer": [
+                    [
+                      100.0,
+                      -0.1,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -100.0,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      100.0,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      0.1,
+                      -100.0
+                    ]
+                  ],
+                  "Retainer": [
+                    [
+                      99.0,
+                      -0.1,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -99.0,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      99.0,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      0.1,
+                      -99.0
+                    ]
+                  ]
+                },
+                "dimensional_coherence": true,
+                "Judge_centroid": [
+                  0.6528571428571429,
+                  -0.562142857142857,
+                  0.6528571428571429,
+                  -0.45285714285714285
+                ],
+                "Judge_spread": [
+                  0.4957091395368944,
+                  0.3966813865673301,
+                  0.4957091395368943,
+                  0.2745757395231666
+                ],
+                "Splitter_centroid": [
+                  0.7519999999999998,
+                  -0.5832499999999998,
+                  0.7519999999999996,
+                  -0.5832499999999999
+                ],
+                "Splitter_spread": [
+                  0.7898151682514073,
+                  0.7486789615716472,
+                  0.7898151682514074,
+                  0.7486789615716472
+                ],
+                "Computational_centroid": [
+                  1.0650000000000004,
+                  -0.5,
+                  1.0650000000000004,
+                  -0.8849999999999996
+                ],
+                "Computational_spread": [
+                  0.0,
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "Reviewer_centroid": [
+                  25.074999999999996,
+                  -25.074999999999996,
+                  25.075,
+                  -25.075
+                ],
+                "Reviewer_spread": [
+                  43.25796891903271,
+                  43.25796891903271,
+                  43.257968919032706,
+                  43.25796891903271
+                ],
+                "Retainer_centroid": [
+                  24.824999999999996,
+                  -24.824999999999996,
+                  24.825,
+                  -24.825
+                ],
+                "Retainer_spread": [
+                  42.82495621714049,
+                  42.82495621714049,
+                  42.82495621714049,
+                  42.82495621714049
+                ]
+              },
+              "segment_2": {
+                "segment_id": 2,
+                "spatial_zones": 5,
+                "node_positions": {
+                  "Judge": [
+                    [
+                      -1.0,
+                      0.1,
+                      -0.1,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      1.0,
+                      -0.1,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      0.1,
+                      -1.0,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      0.1,
+                      -0.1,
+                      1.0
+                    ],
+                    [
+                      -1.2999999999999998,
+                      0.6500000000000001,
+                      -0.5,
+                      0.6500000000000001
+                    ],
+                    [
+                      -0.5,
+                      0.6500000000000001,
+                      -1.2999999999999998,
+                      0.6500000000000001
+                    ]
+                  ],
+                  "Splitter": [
+                    [
+                      -1.92,
+                      0.15999999999999998,
+                      -0.1,
+                      0.15999999999999998
+                    ],
+                    [
+                      -0.1,
+                      2.08,
+                      -0.1,
+                      0.15999999999999998
+                    ],
+                    [
+                      -0.1,
+                      0.15999999999999998,
+                      -1.92,
+                      0.15999999999999998
+                    ],
+                    [
+                      -0.1,
+                      0.15999999999999998,
+                      -0.1,
+                      2.08
+                    ]
+                  ],
+                  "Computational": [
+                    [
+                      -0.5,
+                      1.7000000000000002,
+                      -0.5,
+                      0.6500000000000001
+                    ],
+                    [
+                      -0.5,
+                      0.6500000000000001,
+                      -0.5,
+                      1.7000000000000002
+                    ]
+                  ],
+                  "Reviewer": [
+                    [
+                      -100.0,
+                      0.1,
+                      -0.1,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      100.0,
+                      -0.1,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      0.1,
+                      -100.0,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      0.1,
+                      -0.1,
+                      100.0
+                    ]
+                  ],
+                  "Retainer": [
+                    [
+                      -99.0,
+                      0.1,
+                      -0.1,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      99.0,
+                      -0.1,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      0.1,
+                      -99.0,
+                      0.1
+                    ],
+                    [
+                      -0.1,
+                      0.1,
+                      -0.1,
+                      99.0
+                    ]
+                  ]
+                },
+                "dimensional_coherence": true,
+                "Judge_centroid": [
+                  -0.5166666666666667,
+                  0.4333333333333334,
+                  -0.5166666666666666,
+                  0.4333333333333334
+                ],
+                "Judge_spread": [
+                  0.4775516260631468,
+                  0.35316033500695154,
+                  0.4775516260631468,
+                  0.3531603350069515
+                ],
+                "Splitter_centroid": [
+                  -0.555,
+                  0.6400000000000001,
+                  -0.555,
+                  0.64
+                ],
+                "Splitter_spread": [
+                  0.7880831174438392,
+                  0.8313843876330611,
+                  0.7880831174438391,
+                  0.8313843876330611
+                ],
+                "Computational_centroid": [
+                  -0.5,
+                  1.1750000000000003,
+                  -0.5,
+                  1.1750000000000003
+                ],
+                "Computational_spread": [
+                  0.0,
+                  0.525,
+                  0.0,
+                  0.525
+                ],
+                "Reviewer_centroid": [
+                  -25.074999999999996,
+                  25.074999999999996,
+                  -25.075,
+                  25.075
+                ],
+                "Reviewer_spread": [
+                  43.25796891903271,
+                  43.25796891903271,
+                  43.257968919032706,
+                  43.25796891903271
+                ],
+                "Retainer_centroid": [
+                  -24.824999999999996,
+                  24.824999999999996,
+                  -24.825,
+                  24.825
+                ],
+                "Retainer_spread": [
+                  42.82495621714049,
+                  42.82495621714049,
+                  42.82495621714049,
+                  42.82495621714049
+                ]
+              },
+              "segment_3": {
+                "segment_id": 3,
+                "spatial_zones": 5,
+                "node_positions": {
+                  "Judge": [
+                    [
+                      1.0,
+                      -0.1,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -1.0,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      1.0,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      0.1,
+                      -1.0
+                    ],
+                    [
+                      1.7000000000000002,
+                      -0.5,
+                      0.6500000000000001,
+                      -0.5
+                    ],
+                    [
+                      0.6500000000000001,
+                      -0.5,
+                      1.7000000000000002,
+                      -0.5
+                    ]
+                  ],
+                  "Splitter": [
+                    [
+                      2.08,
+                      -0.1,
+                      0.15999999999999998,
+                      -0.1
+                    ],
+                    [
+                      0.15999999999999998,
+                      -1.92,
+                      0.15999999999999998,
+                      -0.1
+                    ],
+                    [
+                      0.15999999999999998,
+                      -0.1,
+                      2.08,
+                      -0.1
+                    ],
+                    [
+                      0.15999999999999998,
+                      -0.1,
+                      0.15999999999999998,
+                      -1.92
+                    ]
+                  ],
+                  "Computational": [
+                    [
+                      0.6500000000000001,
+                      -1.2999999999999998,
+                      0.6500000000000001,
+                      -0.5
+                    ],
+                    [
+                      0.6500000000000001,
+                      -0.5,
+                      0.6500000000000001,
+                      -1.2999999999999998
+                    ]
+                  ],
+                  "Reviewer": [
+                    [
+                      100.0,
+                      -0.1,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -100.0,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      100.0,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      0.1,
+                      -100.0
+                    ]
+                  ],
+                  "Retainer": [
+                    [
+                      99.0,
+                      -0.1,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -99.0,
+                      0.1,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      99.0,
+                      -0.1
+                    ],
+                    [
+                      0.1,
+                      -0.1,
+                      0.1,
+                      -99.0
+                    ]
+                  ]
+                },
+                "dimensional_coherence": true,
+                "Judge_centroid": [
+                  0.6083333333333334,
+                  -0.38333333333333336,
+                  0.6083333333333334,
+                  -0.3833333333333333
+                ],
+                "Judge_spread": [
+                  0.5947104804487269,
+                  0.32871804872193366,
+                  0.5947104804487269,
+                  0.32871804872193366
+                ],
+                "Splitter_centroid": [
+                  0.6400000000000001,
+                  -0.555,
+                  0.64,
+                  -0.5549999999999999
+                ],
+                "Splitter_spread": [
+                  0.8313843876330611,
+                  0.7880831174438392,
+                  0.8313843876330611,
+                  0.7880831174438391
+                ],
+                "Computational_centroid": [
+                  0.6500000000000001,
+                  -0.8999999999999999,
+                  0.6500000000000001,
+                  -0.8999999999999999
+                ],
+                "Computational_spread": [
+                  0.0,
+                  0.3999999999999999,
+                  0.0,
+                  0.3999999999999999
+                ],
+                "Reviewer_centroid": [
+                  25.074999999999996,
+                  -25.074999999999996,
+                  25.075,
+                  -25.075
+                ],
+                "Reviewer_spread": [
+                  43.25796891903271,
+                  43.25796891903271,
+                  43.257968919032706,
+                  43.25796891903271
+                ],
+                "Retainer_centroid": [
+                  24.824999999999996,
+                  -24.824999999999996,
+                  24.825,
+                  -24.825
+                ],
+                "Retainer_spread": [
+                  42.82495621714049,
+                  42.82495621714049,
+                  42.82495621714049,
+                  42.82495621714049
+                ]
+              }
+            },
+            "multi_dimensional": true
+          }
+        }
+      },
+      "total_time": 0.002943277359008789,
+      "status": "passed"
+    },
+    "phase_12": {
+      "subtests": {
+        "12.1_stress": {
+          "high_load_training": {
+            "status": "passed",
+            "stress_time": 1.2255115509033203,
+            "samples_processed": 25,
+            "throughput": 20.399644525237306,
+            "final_loss": 0.0,
+            "memory_stable": true,
+            "performance_maintained": true
+          }
+        },
+        "12.2_concurrent": {
+          "concurrent_operations": {
+            "status": "passed",
+            "operation_time": 0.02375173568725586,
+            "nodes_created": 5,
+            "connections_created": 4,
+            "operations_per_second": 378.91967637670393,
+            "consistency_maintained": true
+          }
+        }
+      },
+      "total_time": 1.250244379043579,
+      "status": "passed"
+    },
+    "phase_13": {
+      "subtests": {
+        "13.1_error_handling": {
+          "invalid_input_handling": {
+            "status": "passed",
+            "scenarios_tested": 2,
+            "scenarios_handled": 2,
+            "error_recovery_successful": true,
+            "scenarios": [
+              {
+                "scenario": "large_data_shape",
+                "handled": true
+              },
+              {
+                "scenario": "empty_data",
+                "handled": true
+              }
+            ]
+          }
+        },
+        "13.2_recovery": {
+          "system_recovery": {
+            "status": "passed",
+            "recovery_scenarios": [
+              {
+                "scenario": "state_consistency",
+                "pre_nodes": 20,
+                "post_nodes": 20,
+                "state_preserved": true,
+                "training_successful": true
+              }
+            ],
+            "system_resilient": true,
+            "state_consistency_maintained": true
+          }
+        }
+      },
+      "total_time": 0.12810587882995605,
+      "status": "passed"
+    }
+  },
+  "errors": [],
+  "warnings": [],
+  "benchmarks": {
+    "overall_performance_score": 100.0,
+    "performance_tests_passed": 3,
+    "performance_tests_total": 3
+  },
+  "component_tests": {},
+  "integration_tests": {},
+  "performance_metrics": {},
+  "summary": {
+    "total_time": 16.440483570098877,
+    "total_phases": 13,
+    "passed_phases": 13,
+    "failed_phases": 0,
+    "success_rate": 100.0,
+    "total_errors": 0,
+    "total_warnings": 0,
+    "components_tested": {
+      "brain_nexus": true,
+      "segments_created": 3,
+      "segment_learners_created": 3
+    },
+    "phase_breakdown": {
+      "phase_1": {
+        "name": "Core Architecture",
+        "status": "passed",
+        "time": 0.1315140724182129
+      },
+      "phase_2": {
+        "name": "Node & Segment Creation",
+        "status": "passed",
+        "time": 0.7578568458557129
+      },
+      "phase_3": {
+        "name": "Learning Systems",
+        "status": "passed",
+        "time": 0.0841522216796875
+      },
+      "phase_4": {
+        "name": "Advanced Features",
+        "status": "passed",
+        "time": 13.181047439575195
+      },
+      "phase_5": {
+        "name": "Integration Testing",
+        "status": "passed",
+        "time": 0.06175422668457031
+      },
+      "phase_6": {
+        "name": "Persistence & State",
+        "status": "passed",
+        "time": 0.04113411903381348
+      },
+      "phase_7": {
+        "name": "Performance Benchmarking",
+        "status": "passed",
+        "time": 0.49767160415649414
+      },
+      "phase_8": {
+        "name": "Multi-Modal Processing",
+        "status": "passed",
+        "time": 0.2872626781463623
+      },
+      "phase_9": {
+        "name": "Reinforcement Learning",
+        "status": "passed",
+        "time": 0.004924774169921875
+      },
+      "phase_10": {
+        "name": "Attention Mechanisms",
+        "status": "passed",
+        "time": 0.0
+      },
+      "phase_11": {
+        "name": "Network Topology",
+        "status": "passed",
+        "time": 0.002943277359008789
+      },
+      "phase_12": {
+        "name": "Stress Testing",
+        "status": "passed",
+        "time": 1.250244379043579
+      },
+      "phase_13": {
+        "name": "Error Recovery",
+        "status": "passed",
+        "time": 0.12810587882995605
+      }
+    },
+    "advanced_features_validated": {
+      "node_evolution": true,
+      "spatial_optimization": true,
+      "multi_modal_processing": true,
+      "reinforcement_learning": true,
+      "attention_mechanisms": true,
+      "network_topology": true,
+      "stress_testing": true,
+      "error_recovery": true
+    }
+  }
+}
