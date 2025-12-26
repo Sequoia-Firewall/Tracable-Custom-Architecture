@@ -12,7 +12,19 @@ from .BaseNode import BaseNode
 class HandlerNode(BaseNode):
     def __init__(self, position):
         self.position = position  # Position in the nexus
+        self.reviewers = []  # List of connected reviewer nodes
 
-    def handle(self, data):
+    def process(self, data):
         # Implement the handling logic for the HandlerNode
+        reviewer_reports = []
+        segment_weights = []
         pass
+
+    def set_reviewers(self, reviewers):
+        self.reviewers = reviewers
+    
+    def apply_segment_weights(self, final_reports, segment_weights):
+        # Implement logic to apply weights from reviewers
+        pass
+
+    

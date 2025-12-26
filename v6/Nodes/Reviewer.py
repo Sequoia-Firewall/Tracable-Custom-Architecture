@@ -14,7 +14,7 @@ class ReviewerNode(BaseNode):
         self.position = position  # Position in the nexus
         self.connected_nodes = []  # List of connected nodes
 
-    def review(self, data):
+    def process(self, data):
         # Implement the review logic for the ReviewerNode
         pass
 

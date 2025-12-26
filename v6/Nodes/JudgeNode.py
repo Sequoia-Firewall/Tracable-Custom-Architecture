@@ -30,6 +30,10 @@ class JudgeNode(BaseNode):
     def determine_feature_priority(self, data):
         # Implement the feature priority determination logic
         pass
+    
+    def determine_segment_priority(self, feature_priority):
+        # Implement the segment priority determination logic
+        pass
 
     def determine_splitters(self, feature_priority):
         # Implement the logic to determine which splitters to use based on feature priority
