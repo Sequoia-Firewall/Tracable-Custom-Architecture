@@ -96,12 +96,13 @@ class main:
             node_positions = self.generate_evenly_spaced_positions(dimensions, max_x, coverage=0.9, num_nodes=num_nodes)
             reviewer_pos_tuple = tuple(reviewer_pos)
             processing_nodes = [ProcessingNode.ProcessingNode(position=pos, reviewer_position=reviewer_pos_tuple) for pos in node_positions]
-
+            splitter = SplitterNode.SplitterNode(position=tuple(splitter_pos), nodes_in_segment=processing_nodes, dimenstions=dimensions, segment_id=i)
+            reviewer = ReviewerNode.ReviewerNode(position=tuple(reviewer_pos), splitter=splitter)
             segment = {
                 'index': i,
-                'splitter': SplitterNode.SplitterNode(position=tuple(splitter_pos), nodes_in_segment=processing_nodes, dimenstions=dimensions, segment_id=i),
+                'splitter': splitter,
                 'processing_nodes': processing_nodes,
-                'reviewer_node': ReviewerNode.ReviewerNode(position=tuple(reviewer_pos))
+                'reviewer_node': reviewer
             }
             
             self.segments.append(segment)

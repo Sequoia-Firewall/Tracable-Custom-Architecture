@@ -27,6 +27,7 @@ class Signal:
         # Aliases for compatibility with ProcessingNode
         self.input = input_data
         self.feature_weights = feature_relevance
+        self._thread = None  # Reference to thread running this signal, if any
 
     def identify_next_node(self, connected_nodes):
         # Implement logic to identify the next node for the signal
@@ -38,7 +39,12 @@ class Signal:
             self.kill_signal()
 
     def kill_signal(self):
-        # Implement logic to kill the signal
-        pass
+        # Mark as not alive and attempt to stop thread if possible
+        self.alive = False
+        # No direct way to kill a thread in Python, but this flag can be checked in threaded logic
+        # If thread reference is set, join with timeout for cleanup
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=0.1)
+        self._thread = None
 
     

@@ -12,7 +12,7 @@ From notes:
 from .BaseNode import BaseNode
 
 class ReviewerNode(BaseNode):
-    def __init__(self, position):
+    def __init__(self, position, splitter):
         if LOGGING_ENABLED:
             print(f'[DEBUG] ReviewerNode initialized at position {position}')
         self.position = position  # Position in the nexus
@@ -22,6 +22,7 @@ class ReviewerNode(BaseNode):
         self.handler = None  # Connected handler node
         self.prepped = False  # Flag to indicate if reviewing is done
         self.signal_arrival_count = 0  # Count signals received
+        self.splitter = splitter  # Associated splitter node, if any
 
     def process(self):
         if not self.signals:
@@ -84,3 +85,13 @@ class ReviewerNode(BaseNode):
     def reset(self):
         self.reset_signals()
         self.prepped = False
+
+    def kill_all_signals_and_threads(self):
+            # Kill all signals and join their threads if possible
+            for sig in self.signals:
+                if hasattr(sig, 'kill_signal'):
+                    sig.kill_signal()
+            self.signals = []
+            # Also attempt to clean up threads from associated splitter if available
+            if hasattr(self, 'splitter') and hasattr(self.splitter, 'cleanup_threads'):
+                self.splitter.cleanup_threads()

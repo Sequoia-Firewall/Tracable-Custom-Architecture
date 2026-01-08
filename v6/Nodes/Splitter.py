@@ -1,13 +1,14 @@
 import sys
+import threading
 LOGGING_ENABLED = '--debug' in sys.argv
 """
 from notes:
  - splitter : takes data from judge and passes to closest 5% of processing nodes
-  -- splitters are divided based on 2d quadrant or 3d octant
-  -- currently no logic to how splitters get different values - judge manages that
-  -- gets a feature and passes to processing nodes
-  -- intent is generic routing as they create signals
-  -- splitters must not be purely feature based
+    -- splitters are divided based on 2d quadrant or 3d octant
+    -- currently no logic to how splitters get different values - judge manages that
+    -- gets a feature and passes to processing nodes
+    -- intent is generic routing as they create signals
+    -- splitters must not be purely feature based
 """
 
 from .BaseNode import BaseNode
@@ -24,6 +25,7 @@ class SplitterNode(BaseNode):
         self.all_node_count = len(nodes_in_segment)
         self.dimenstions = dimenstions  # Number of dimensions (2D or 3D)
         self.segment_id = segment_id  # Segment identifier
+        self.signal_threads = []  # Track threads for signals
 
 
     def compute_closest_nodes(self, all_node_count, nodes_in_segment, percent=0.05):
@@ -56,6 +58,11 @@ class SplitterNode(BaseNode):
             # Convert list of tuples to dict
             feature_relevance = dict(feature_relevance)
         created_signals = []
+        self.signal_threads = []  # Reset threads for each process call
+
+        def signal_thread_func(node, signal):
+            node.receive_signal(signal)
+
         for i in self.closest_nodes:
             input_data = carrier_data.get('input_data', None)
             # Convert numpy array to dict if needed
@@ -70,8 +77,18 @@ class SplitterNode(BaseNode):
                 life=10,  # Arbitrary initial life value
                 input_data=input_data
             )
+            t = threading.Thread(target=signal_thread_func, args=(i, signal))
+            t.daemon = True
             created_signals.append(signal)
-            i.receive_signal(signal)
+            t.start()
+            self.signal_threads.append(t)
         return created_signals
+
+    def cleanup_threads(self):
+        # Wait for all signal threads to finish (if needed)
+        for t in self.signal_threads:
+            if t.is_alive():
+                t.join(timeout=0.1)
+        self.signal_threads = []
     
 
