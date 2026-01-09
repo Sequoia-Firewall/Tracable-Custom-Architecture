@@ -74,7 +74,7 @@ class SplitterNode(BaseNode):
                 feature_relevance=feature_relevance,
                 active_prediction=None,
                 accumulated_variance=0.0,
-                life=10,  # Arbitrary initial life value
+                life=100,  # Arbitrary initial life value
                 input_data=input_data
             )
             t = threading.Thread(target=signal_thread_func, args=(i, signal))

@@ -2,6 +2,10 @@ import sys
 LOGGING_ENABLED = '--debug' in sys.argv
 import pandas as pd
 import numpy as np
+from rich.console import Console
+from rich.live import Live
+from rich.table import Table
+from tqdm import tqdm
 
 import Nodes.BaseNode as BaseNode
 import Nodes.JudgeNode as JudgeNode
@@ -10,6 +14,7 @@ import Nodes.Splitter as SplitterNode
 import Nodes.Reviewer as ReviewerNode
 import Nodes.Processing as ProcessingNode
 import Nodes.PreProcessNode as PreProcessNode
+from collections import deque
 
 class main:
         
@@ -155,7 +160,9 @@ class main:
         )
 
         # ---------- 3. Signal-based training ----------
-        for x_i, y_i in zip(X_proc, y):
+
+        console = Console()
+        for idx, (x_i, y_i) in enumerate(tqdm(zip(X_proc, y), total=len(y), desc="Training")):
             judge_output = self.judge_node.process(x_i)
             priority_features = judge_output["priority_features"]
             splitter_scores = judge_output["splitter_scores"]
@@ -185,6 +192,7 @@ class main:
                 for node, signal in zip(splitter.closest_nodes, signals):
                     node.receive_signal(signal)
                     node.forward_signal(reviewer)
+
             # ---------- 4. Feedback ----------
             for segment in self.segments:
                 reviewer = segment['reviewer_node']
@@ -198,11 +206,11 @@ class main:
                 error = y_i - pred
                 self.judge_node.update_feature_relevance_from_feedback(
                     {
-                        "input": x_i,
-                        "target": y_i,
-                        "predicted": pred,
-                        "error": error
-                    }
+                    "input": x_i,
+                    "target": y_i,
+                    "predicted": pred,
+                    "error": error
+                }
                 )
                 self.judge_node.update_segment_variance_from_feedback(
                     {
@@ -251,6 +259,13 @@ class main:
         ranked_features = self.judge_node.rank_features(relevance_scores)
         routed = self.judge_node.route_to_splitters(x_proc, ranked_features)
 
+
+        console = Console()
+        live_table = Table(title="Signal Live Monitor (Inference)")
+        live_table.add_column("Segment")
+        live_table.add_column("Live Signals")
+        live_table.add_column("Dead Signals")
+        live_table.add_column("To Reviewer")
         for segment in self.segments:
             splitter = segment['splitter']
             processing_nodes = segment['processing_nodes']
@@ -284,13 +299,26 @@ class main:
             for i, node in enumerate(splitter.closest_nodes):
                 if i < len(processing_nodes):
                     proc = processing_nodes[i]
+                    queue = deque()
+
                     proc.receive_signal(signals[i])
-                    proc.process()
-                    proc.forward_signal(reviewer)
+                    queue.append(proc)
+            for segment in self.segments:
+                while queue:
+                    node = queue.popleft()
 
-            reviewer.amount_live_signals = len(splitter.closest_nodes)
+                    node.process()
 
-        # DO NOT call receive_reviewer_report()
+                    next_node, next_signal = node.forward_signal()
+
+                    if next_node is segment['reviewer_node'] or next_node is None:
+                        # No internal forwarding → send to reviewer
+                        reviewer.receive_signal(node.signal)
+                        continue
+
+                    # Internal NN-style hop
+                    next_node.receive_signal(next_signal)
+                    queue.append(next_node)
         return self.handler_node.process()
     
     def run_demo(self):
@@ -362,7 +390,7 @@ class main:
 
             X = df.drop('exam_score', axis=1)
             y = df['exam_score']
-
+            print("Dataset loaded. starting main nexus")
             # Initialize main nexus
             nexus = main()
             nexus.load_dataset(X)

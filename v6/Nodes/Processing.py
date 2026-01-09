@@ -62,38 +62,25 @@ class ProcessingNode(BaseNode):
         self.signal.accumulated_variance = getattr(self.signal, 'accumulated_variance', 0) + variance
         if hasattr(self.signal, 'prediction'):
             self.signal.prediction = prediction
-        # Forward to a neighbor chosen by custom probability (20% for closest, 10% for next, etc.)
-        if not hasattr(self, 'neighbors'):
-            self.neighbors = []
-        if hasattr(self.signal, 'life') and self.signal.life > 0 and self.neighbors and self.reviewer_position is not None:
-            # Sort neighbors by distance to reviewer
-            neighbors_sorted = sorted(self.neighbors, key=lambda n: np.linalg.norm(np.array(n.position) - np.array(self.reviewer_position)))
-            # Assign custom weights: 20% for closest, 10% for next, 5% for next, 3% for next, 2% for next, 1% for the rest
-            base_weights = [20, 10, 5, 3, 2]
-            weights = []
-            for i in range(len(neighbors_sorted)):
-                if i < len(base_weights):
-                    weights.append(base_weights[i])
-                else:
-                    weights.append(1)
-            # Scale weights to sum to 100
-            total = sum(weights)
-            scaled_weights = [w / total for w in weights]
-            import random
-            chosen_idx = random.choices(range(len(neighbors_sorted)), weights=scaled_weights, k=1)[0]
-            chosen_neighbor = neighbors_sorted[chosen_idx]
-            self.signal.life -= 1
-            if self.signal.life > 0:
-                self.forward_signal(chosen_neighbor)
+        # Mark this node as visited
+        if hasattr(self.signal, 'visited_nodes'):
+            self.signal.visited_nodes.add(id(self))
+            
+                
     def receive_signal(self, signal):
         # Receive and process the signal
+        if signal is None:
+            return
+        if getattr(signal, "life", 0) <= 0:
+            return
+        
         self.signal = signal
         if not self.weights:
-          self.create_weights(signal.feature_relevance)
-          dist = np.linalg.norm(np.array(signal.position) - np.array(self.position))
+          self.create_weights(self.signal.feature_relevance)
+          dist = np.linalg.norm(np.array(self.signal.position) - np.array(self.position))
           scale = 1.0 / (1.0 + dist)
           self.weights = {k: v * scale for k, v in self.weights.items()}
-        self.process()
+        
     
     def apply_local_model(self, input_data, feature_relevances):
       pred = sum(input_data.get(f, 0) * w for f, w in feature_relevances.items())
@@ -110,12 +97,40 @@ class ProcessingNode(BaseNode):
             self.signal = None
     
     def forward_signal(self, next_node=None):
-        if not self.signal:
+        
+        if self.signal is None:
             return
-        if next_node is not None:
-            # Forward directly to the given node (no clone)
-            next_node.receive_signal(self.signal)
-        self.signal = None
+        if self.signal.life <= 0:
+            self.signal.alive = False
+            self.signal.kill_signal()
+            self.signal = None
+            return None, None
+        # Only after all processing, forward the signal
+        if hasattr(self.signal, 'life') and self.signal.life > 0 and self.neighbors and self.reviewer_position is not None:
+            # Sort neighbors by distance to reviewer
+            neighbors_sorted = sorted(self.neighbors, key=lambda n: np.linalg.norm(np.array(n.position) - np.array(self.reviewer_position)))
+            # Filter out already visited neighbors
+            unvisited_neighbors = [n for n in neighbors_sorted if not hasattr(self.signal, 'visited_nodes') or id(n) not in self.signal.visited_nodes]
+            if not unvisited_neighbors:
+                return  # No unvisited neighbors left
+            # Assign custom weights: 20% for closest, 10% for next, 5% for next, 3% for next, 2% for next, 1% for the rest
+            base_weights = [20, 10, 5, 3, 2]
+            weights = []
+            for i in range(len(unvisited_neighbors)):
+                if i < len(base_weights):
+                    weights.append(base_weights[i])
+                else:
+                    weights.append(1)
+            # Scale weights to sum to 100
+            total = sum(weights)
+            scaled_weights = [w / total for w in weights]
+            import random
+            chosen_idx = random.choices(range(len(unvisited_neighbors)), weights=scaled_weights, k=1)[0]
+            chosen_neighbor = unvisited_neighbors[chosen_idx]
+            self.signal.life -= 1
+            signal_clone = self.signal  # In real scenario, you might want to deep copy
+            self.signal = None  # Clear current signal after forwarding
+            return chosen_neighbor, signal_clone
 
     def compute_neighbors(self, all_nodes, percent=0.05):
       distances = []
@@ -130,5 +145,5 @@ class ProcessingNode(BaseNode):
       distances.sort(key=lambda x: x[1])
       n = max(1, int(len(distances) * percent))
       self.neighbors = [n for n, _ in distances[:n]]
-    
-    
+
+

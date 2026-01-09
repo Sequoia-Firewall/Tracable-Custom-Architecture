@@ -23,6 +23,7 @@ class Signal:
         self.life = life  # Remaining life of the signal
         self.input_data = input_data  # Placeholder for input data
         self.alive = True  # Signal is alive by default
+        self.visited_nodes = set()  # Track visited nodes to prevent cycles
 
         # Aliases for compatibility with ProcessingNode
         self.input = input_data
