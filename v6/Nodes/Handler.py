@@ -34,17 +34,26 @@ class HandlerNode(BaseNode):
     def set_segment_weights(self, weights):
         self.segment_weights = weights  # externally provided
 
+    def receive_reports(self):
+        for reviewer in self.reviewers:
+            if reviewer.prepped and reviewer.signals:
+                self.receive_signal(reviewer.signals[0])
+                reviewer.reset()
+
+
     def process(self):
         if not self.reviewer_reports:
+            print(f"[DEBUG][HandlerNode] No reviewer reports to process.")
             return None
 
         weighted_sum = 0.0
         weight_total = 0.0
 
         for report in self.reviewer_reports:
+            print(f"[DEBUG][HandlerNode] Processing report from segment {report.segment_id} with prediction {report.prediction} and variance {report.variance}")
             if not self.segment_weights:
                 self.segment_weights = {r.segment_id: 1.0 for r in self.reviewer_reports}
-            seg_weight = self.segment_weights.get(report.segment_id, 0.0)
+            seg_weight = self.segment_weights.get(report.segment_id, 1.0)
             precision = 1.0 / max(report.variance, 1e-6)
 
             contribution = report.prediction * precision * seg_weight

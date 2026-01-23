@@ -1,0 +1,85 @@
+Purpose: create a general framework for the development of scalable specialized models while attempting to minimize memory usage
+exploring geometric based NN
+application test: exam score prediction
+
+architecture
+ - preprocessing node: 
+    -- processes dataset
+    -- tokenizes data
+    --- note not LLM scale tokenization, likely just small numerical representation of categorical data unique values for now
+
+ - Judge Node:
+ -- will compute 1 different types of predictions. 
+ -- will predict segment relevance: 
+ --- using values of input data, will use an algorithm to compute the relevance of different segments
+ --- will activate the top 50% of relevant segments
+ --- segment relevance scores to be used later in handler to compute final prediction
+ -- will route data to the relevant segments and their splitter for further processing
+ -- integrated ML for segment relevance calculations
+
+ - splitter node:
+ -- 2 primary tasks
+ -- will predict feature relevance:
+ --- to be used like attention
+ --- impacts processing node calculations
+ -- will route new Signals to nearest 5% of processing nodes. (each get a unique signal)
+ --- euclidean distance formula based on dimensions
+ -- Integrated ML for feature relevance calculations
+
+ - processing:
+ -- will take in the input and feature relevance
+ -- using bayes theorem I will calculate a prediction
+ -- will then forward the prediction to other processing nodes which add/subtract from prior predictions in a decreasing magnitude
+ --- will use calculated distance from origin as a scalar 
+ -- to determine where signals are passed:
+ --- nearest 3% of nodes are found.
+ --- distance from origin is used. based on amount i will find 100/node-count.
+ --- this value will determine the chance of the node furthest from the origin. then that chance will be divided by 2 for the rest of the nodes, eg. 25, 12.5, 6.25, etc.
+ --- then I will multiply by a 10^n scalar to ensure all are integers
+ --- a random function will pick which node to be passed to. 
+ --- nodes closer to the origin than the current are not eligible.
+ -- will also add a variance score to the signal accumulating over time
+ -- integrated ML to form an NN
+
+ - reviewer:
+ -- will be located at the extreme corner of the dimensional object. to incentivise signals to move there
+ -- will take all calculated predictions and their variance scores
+ -- will use variance and predictions to create a final prediction for that segment
+ -- will forward this to handler
+ -- purely mathematical
+
+ - handler: 
+ -- using segment relevance calculated above, will take predictions from segments and will calculate a final prediction
+ -- purely mathematical
+
+ - signal:
+ -- a class simply to contain all info as it is passed allowing
+
+training:
+- need to train in chunks due to multiple variables
+- will need to train:
+-- segment relevance
+-- feature relevance for each segment
+-- processing node weights
+-- processing node positions
+- this requires a way to make each segment unique with an emphasis on something
+-- by differntiating the segments and making each unique the processing nodes can be trained to fulfill that unique intent
+-- end goal must be consistent across segments though
+-- once each segment has defined intent:
+--- will train processing nodes by position and weight simultaniously (possibly use gradient learning?)
+--- will then train feature relevance for each splitter based on intent
+--- will then train segment relevance in judge node once each segment has defined training
+- isses:
+-- large and complicated system with many moving parts
+-- long and complicated training processes
+-- many possible issues for training
+
+- possible benefits:
+-- by pruning least relevant segments and dynamically activating processing nodes based on geometric space i can possibly minimize some memory costs or computational costs
+-- can integrate multithreading with signals maybe improve speed than activate all nodes like other NN
+
+Final notes:
+ Likely not as efficient or practical as traditional architectures like CNN, RNN, or attention, but this serves to be research focused into the benefits of geometric based NN since positions impact magnitude of change in the prediction
+ biggest cost will likely be training. however, in larger models it is possible this will be more memory and computation efficient than traditional architectures due to dynamic pruning and activation. This is a hypothesis though, evidence will be gathered hopefully in this experiment.
+ I will emphasize a general purpose framework, which can be edited to be more specialized.
+

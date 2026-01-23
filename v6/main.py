@@ -6,6 +6,8 @@ from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 from tqdm import tqdm
+import os
+import pickle
 
 import Nodes.BaseNode as BaseNode
 import Nodes.JudgeNode as JudgeNode
@@ -266,6 +268,9 @@ class main:
         live_table.add_column("Live Signals")
         live_table.add_column("Dead Signals")
         live_table.add_column("To Reviewer")
+        console.print(live_table)
+        self.segment_queue_count = 0
+        self.segment_demonstration = []
         for segment in self.segments:
             splitter = segment['splitter']
             processing_nodes = segment['processing_nodes']
@@ -295,32 +300,92 @@ class main:
             }
 
             signals = splitter.process(carrier_data)
+            reviewer.expected_signals = len(splitter.closest_nodes)
+            queue = deque()
+            added_nodes_count = 0
+            for node, signal in zip(splitter.closest_nodes, signals):
+                node.receive_signal(signal)
+                queue.append(node)
+                added_nodes_count += 1
+            print(f"[DEBUG] Segment {segment_id}: Added {added_nodes_count} processing nodes to the queue.")
+            self.segment_demonstration.append([segment_id, added_nodes_count])
+            if len(queue) != 0:
+                print(f"[DEBUG] Segment {segment_id}: Initial queue length is {len(queue)}.")
+                self.segment_queue_count += 1
+            while queue:
+                node = queue.popleft()
+                if node.signal is not None:
+                    print(f"Input data: {node.signal.input_data}, Feature relevance: {node.signal.feature_relevance}, Segment relevance: {segment_relevance}, Prediction: {getattr(node.signal, 'prediction', None)}")
+                
+                node.process()
 
-            for i, node in enumerate(splitter.closest_nodes):
-                if i < len(processing_nodes):
-                    proc = processing_nodes[i]
-                    queue = deque()
 
-                    proc.receive_signal(signals[i])
-                    queue.append(proc)
-            for segment in self.segments:
-                while queue:
-                    node = queue.popleft()
+                next_node, next_signal = node.forward_signal()
 
-                    node.process()
+                if next_signal is None:
+                    continue
 
-                    next_node, next_signal = node.forward_signal()
-
-                    if next_node is segment['reviewer_node'] or next_node is None:
-                        # No internal forwarding → send to reviewer
-                        reviewer.receive_signal(node.signal)
-                        continue
-
-                    # Internal NN-style hop
+                if next_node is None or next_node is reviewer:
+                    reviewer.receive_signal(next_signal)
+                    print(f"[DEBUG] Segment {segment_id}: Signal forwarded to reviewer from node at position {node.position}. with signal prediction {getattr(next_signal, 'prediction', None)}")
+                else:
                     next_node.receive_signal(next_signal)
                     queue.append(next_node)
+
+            reviewer.process()
+        self.handler_node.receive_reports()
         return self.handler_node.process()
     
+    def save_state(self, filename="Demo.nexus"):
+        state = {
+            'segments': [
+                {
+                    'index': seg['index'],
+                    'splitter_position': seg['splitter'].position,
+                    'processing_nodes': [
+                        {
+                            'position': node.position,
+                            'weights': getattr(node, 'weights', {})
+                        } for node in seg['processing_nodes']
+                    ],
+                    'reviewer_position': seg['reviewer_node'].position
+                } for seg in self.segments
+            ],
+            'judge_node': {
+                'position': getattr(self.judge_node, 'position', None)
+            },
+            'handler_node': {
+                'position': getattr(self.handler_node, 'position', None)
+            },
+            'dataset_features': getattr(self, 'dataset_features', [])
+        }
+        with open(filename, "wb") as f:
+            pickle.dump(state, f)
+        print(f"Nexus state saved to {filename}")
+
+    def load_state(self, filename="Demo.nexus"):
+        if not os.path.exists(filename):
+            print(f"State file {filename} not found.")
+            return False
+        with open(filename, "rb") as f:
+            state = pickle.load(f)
+        # Restore dataset features
+        self.dataset_features = state.get('dataset_features', [])
+        # Restore judge and handler positions
+        if self.judge_node:
+            self.judge_node.position = state['judge_node'].get('position', self.judge_node.position)
+        if self.handler_node:
+            self.handler_node.position = state['handler_node'].get('position', self.handler_node.position)
+        # Restore segments
+        for seg, seg_state in zip(self.segments, state['segments']):
+            seg['splitter'].position = seg_state['splitter_position']
+            seg['reviewer_node'].position = seg_state['reviewer_position']
+            for node, node_state in zip(seg['processing_nodes'], seg_state['processing_nodes']):
+                node.position = node_state['position']
+                node.weights = node_state['weights']
+        print(f"Nexus state loaded from {filename}")
+        return True
+
     def run_demo(self):
             # Load dataset
             df = pd.read_csv("v6/Exam_Score_Prediction.csv")
@@ -397,16 +462,52 @@ class main:
             # Use 2D, max_x=50 for a small test nexus
             nexus.initialize_base_framework(dimensions=2, max_x=50)
             
-            # Train
-            nexus.train(X.to_dict(orient='records'), y.values)
+            # Check for Demo.nexus file
+            if os.path.exists("Demo.nexus"):
+                print("Demo.nexus file found. Would you like to load it and skip training? (y/n): ", end="")
+                choice = input().strip().lower()
+                if choice == "y":
+                    nexus.load_state("Demo.nexus")
+                    # Optionally skip training
+                    print("Loaded saved nexus state. Skipping training.")
+                    node_count = 0
+                    total_signals_to_reviewers = 0
+                    for segment in nexus.segments:
+                        print(f"Segment {segment['index']}: {len(segment['processing_nodes'])} processing nodes")
+                        for node in segment['processing_nodes']:
+                            if node.weights:
+                                node_count += 1
+                    print(f"Total activated processing nodes: {node_count}")
+                else:
+                    # Train
+                    nexus.train(X.to_dict(orient='records'), y.values)
+                    nexus.save_state("Demo.nexus")
+                    
+            else:
+                # Train
+                nexus.train(X.to_dict(orient='records'), y.values)
+                 # After training, save state
+                nexus.save_state("Demo.nexus")
             # Test inference on a random row
             test_x = X.iloc[0].to_dict()
             result = nexus.infer(test_x)
+            # Minimal addition: count signals created by all splitters for this inference
+            total_signals_created = 0
+            for segment in nexus.segments:
+                splitter = segment['splitter']
+                # If splitter has a signals attribute or similar, count them; otherwise, count closest_nodes
+                if hasattr(splitter, 'closest_nodes'):
+                    total_signals_created += len(splitter.closest_nodes)
             
+            """
             for segment in nexus.segments:
                 for node in segment['processing_nodes']:
-                    print(f"ProcessingNode at position {node.position} with weights: {node.weights}")
+                    if node.weights:
+                        print(f"Node at position {node.position} has weights: {node.weights}")
+            """
+            print("Amount of live segments with queued nodes:", nexus.segment_queue_count)
             print("Test input:", test_x)
+            print("segment node amounts for demo:", nexus.segment_demonstration)
             print("Predicted score:", result)
             print("Actual score:", y.iloc[0])
             node_count = 0
@@ -419,7 +520,10 @@ class main:
                 # Add up signals that reached the reviewer for this segment
                 total_signals_to_reviewers += segment['reviewer_node'].signal_arrival_count
             print(f"Total activated processing nodes: {node_count}")
+            print(f"Total signals created during inference: {total_signals_created}")
             print(f"Total signals that reached reviewers: {total_signals_to_reviewers}")
+
+           
 
 if __name__ == "__main__":
     nexus = main()

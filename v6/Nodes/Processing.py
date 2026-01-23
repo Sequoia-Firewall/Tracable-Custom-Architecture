@@ -24,16 +24,16 @@ class ProcessingNode(BaseNode):
         
 
     def create_weights(self, data):
-      if not data:
-          self.weights = {}
-          return
+        if not data:
+            self.weights = {}
+            return
 
-      # Normalize input format
-      if isinstance(data, list):
-          data = {k: v for k, v in data}
+        # Normalize input format
+        if isinstance(data, list):
+            data = {k: v for k, v in data}
 
-      total = sum(abs(v) for v in data.values()) or 1.0
-      self.weights = {k: abs(v) / total for k, v in data.items()}
+        # Use actual relevance values instead of normalized uniform weights
+        self.weights = {k: float(v) for k, v in data.items()}
 
     def update_weights(self, new_weights):
         # Update weights by blending with new incoming weights (simple moving average)
@@ -50,18 +50,18 @@ class ProcessingNode(BaseNode):
         # Extract input and feature relevance from the signal
         if not self.signal:
             return
-        input_data = getattr(self.signal, 'input', None)
-        feature_relevances = getattr(self.signal, 'feature_weights', None)
+        input_data = getattr(self.signal, 'input_data', None)
+        feature_relevances = getattr(self.signal, 'feature_relevance', None)
         if input_data is None or feature_relevances is None:
             return
-        # Optionally update weights
-        self.update_weights(feature_relevances)
-        # Apply local model (Bayesian/Gaussian logic)
-        prediction, variance = self.apply_local_model(input_data, feature_relevances)
+        # Initialize weights from feature relevance if not set
+        if not self.weights:
+            self.create_weights(feature_relevances)
+        # Apply local model (Bayesian logic)
+        prediction, variance = self.apply_local_model(input_data)
         # Update signal variance
         self.signal.accumulated_variance = getattr(self.signal, 'accumulated_variance', 0) + variance
-        if hasattr(self.signal, 'prediction'):
-            self.signal.prediction = prediction
+        self.signal.prediction = prediction
         # Mark this node as visited
         if hasattr(self.signal, 'visited_nodes'):
             self.signal.visited_nodes.add(id(self))
@@ -82,12 +82,25 @@ class ProcessingNode(BaseNode):
           self.weights = {k: v * scale for k, v in self.weights.items()}
         
     
-    def apply_local_model(self, input_data, feature_relevances):
-      pred = sum(input_data.get(f, 0) * w for f, w in feature_relevances.items())
-      local_variance = sum(w**2 for w in feature_relevances.values())
+    def apply_local_model(self, input_data):
+        # Bayesian-style weighted sum using learned weights
+        pred = 0.0
+        var = 0.0
+        for f, w in self.weights.items():
+            x = input_data.get(f, 0)
+            pred += w * x
+            var += w ** 2
+        return pred, max(var, 1e-6)
 
-      # variance must increase
-      return pred, max(local_variance, 1e-6)
+    def learn(self, input_data, target, lr=0.01):
+        """Update weights using a simple gradient step (Bayesian update style)."""
+        # Predict with current weights
+        pred, _ = self.apply_local_model(input_data)
+        error = target - pred
+        # Gradient step for each weight
+        for f in self.weights:
+            x = input_data.get(f, 0)
+            self.weights[f] += lr * error * x
     
     def check_signal_variance(self, variance_threshold):
         # Kill the signal if accumulated variance exceeds threshold
@@ -99,12 +112,13 @@ class ProcessingNode(BaseNode):
     def forward_signal(self, next_node=None):
         
         if self.signal is None:
-            return
-        if self.signal.life <= 0:
+            return None, None
+        signal_clone = self.signal
+        if self.signal.life <= 0 or not self.neighbors:
             self.signal.alive = False
             self.signal.kill_signal()
             self.signal = None
-            return None, None
+            return None, signal_clone
         # Only after all processing, forward the signal
         if hasattr(self.signal, 'life') and self.signal.life > 0 and self.neighbors and self.reviewer_position is not None:
             # Sort neighbors by distance to reviewer
@@ -112,7 +126,8 @@ class ProcessingNode(BaseNode):
             # Filter out already visited neighbors
             unvisited_neighbors = [n for n in neighbors_sorted if not hasattr(self.signal, 'visited_nodes') or id(n) not in self.signal.visited_nodes]
             if not unvisited_neighbors:
-                return  # No unvisited neighbors left
+                self.signal = None
+                return None, signal_clone  # No unvisited neighbors left
             # Assign custom weights: 20% for closest, 10% for next, 5% for next, 3% for next, 2% for next, 1% for the rest
             base_weights = [20, 10, 5, 3, 2]
             weights = []
@@ -128,9 +143,11 @@ class ProcessingNode(BaseNode):
             chosen_idx = random.choices(range(len(unvisited_neighbors)), weights=scaled_weights, k=1)[0]
             chosen_neighbor = unvisited_neighbors[chosen_idx]
             self.signal.life -= 1
-            signal_clone = self.signal  # In real scenario, you might want to deep copy
+              # In real scenario, you might want to deep copy
             self.signal = None  # Clear current signal after forwarding
             return chosen_neighbor, signal_clone
+        # If no forwarding occurs, return None, None
+        return None, signal_clone
 
     def compute_neighbors(self, all_nodes, percent=0.05):
       distances = []
