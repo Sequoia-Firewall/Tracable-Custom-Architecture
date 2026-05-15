@@ -19,11 +19,11 @@ class JudgeNode:
         self.mode = "" # special modes can be assigned later
         self.target = target
 
-    def display(self, message, Loud, classification=None):
+    def display(self, message, Loud):
         message = f"[JudgeNode]: {message}"
         if self.Logger is None:
             raise ValueError("Logger not assigned")
-        self.Logger.log(message, classification if classification is not None else self.classification, Loud)
+        self.Logger.log(message, self.classification, Loud)
 
     def filter_features(self, vector):
         """
@@ -304,7 +304,7 @@ class JudgeNode:
             cluster_count = _min + i  # increment by 1 each iteration
             if cluster_count > _max:
                 break
-            self.display(f"Iteration {i+1}/{min(iterations, _max - _min + 1)} | clusters={cluster_count} ...", True, classification=1)
+            self.display(f"Training iteration {i+1} | clusters={cluster_count}", True)
             self.generate_clusters(dataset_vectors, cluster_count)
             scored_clusters = self.calculate_cluster_scoring(dataset_vectors)
 
@@ -316,7 +316,6 @@ class JudgeNode:
             balance_bonus = 1.0 / (1.0 + cv)
             raw_score = sum(c['metrics']['ClusterScore'] for c in scored_clusters) / len(scored_clusters)
             combined_score = raw_score * (1.0 + balance_bonus)
-            self.display(f"  -> score={combined_score:.4f} (raw={raw_score:.4f}, balance_bonus={balance_bonus:.4f})", True, classification=1)
 
             scores.append({
                 "cluster_count": cluster_count,
@@ -330,7 +329,7 @@ class JudgeNode:
         best = scores[0]
         self.display(
             f"Optimal clusters: {best['cluster_count']} | score={best['avg_score']:.4f} (raw={best['raw_score']:.4f}, balance={best['balance_bonus']:.4f})",
-            True, classification=1
+            True
         )
         self.display("Cluster summaries:", True)
         for c in best['summary']:
@@ -349,7 +348,7 @@ class JudgeNode:
                     f"  Cluster {c['cluster']}: size={c['size']} | GeometricUniqueness={c['GeometricUniqueness']:.4f} | BehavioralDiversity={c['BehavioralDiversity']:.4f} | InformationGain={c['InformationGain']:.4f} | ClusterScore={c['ClusterScore']:.4f}",
                     True
                 )
-        self.display("Generating final clusters based on optimal cluster count...", True, classification=1)
+        self.display("Generating final clusters based on optimal cluster count...", True)
         self.generate_clusters(dataset_vectors, best['cluster_count'])
         self.calculate_cluster_scoring(dataset_vectors)
         if segments is not None:

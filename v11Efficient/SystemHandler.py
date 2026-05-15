@@ -60,7 +60,6 @@ class SystemHandler:
         judge_input = preprocessed.drop(columns=[self.target], errors='ignore')
         self.JudgeNode.train(judge_input, judge_iterations, segments=self.segments,
                              min_clusters=judge_min_clusters, max_clusters=judge_max_clusters)
-        self.display("JudgeNode training complete. Proceeding to segment training...", Loud=loud)
 
         # Step 2: Map each cluster's points back to original dataset row indices.
         # Use the same target-dropped view for the lookup so tuple keys match cluster points.
@@ -90,19 +89,7 @@ class SystemHandler:
             self.display(f"Training segment {segment.segment_id} on {len(subset)}/{len(dataset)} rows...", Loud=loud)
             segment.train(subset, epoch_count=epoch_count, preprocessor=self.preprocessor)
 
-    def train_full(self, dataset, epoch_count: int = 5, loud: bool = True) -> None:
-        """Train every segment on the complete dataset (no JudgeNode partitioning).
-        JudgeNode routing still works at inference — clusters are built on the
-        full dataset so all segments see the same data distribution during training."""
-        if not self.segments:
-            raise ValueError("Segments must be initialized before training. Call initializeAllSegments() first.")
-
-        self.display("Full-dataset training mode — all segments train on complete dataset.", Loud=loud)
-        for segment in self.segments:
-            self.display(f"Training segment {segment.segment_id} on {len(dataset)} rows...", Loud=loud)
-            segment.train(dataset, epoch_count=epoch_count, preprocessor=self.preprocessor)
-
-    def runInfer(self, input, loud = True, aggregation_mode: str = "bma"):
+    def runInfer(self, input, loud = True):
         if self.JudgeNode is None or self.HandlerNode is None:
             raise ValueError("JudgeNode or HandlerNode not assigned")
 
@@ -130,7 +117,7 @@ class SystemHandler:
             for report in reports:
                 self.HandlerNode.receive_report(segment_id, relevance, report['prediction'])
 
-        return self.HandlerNode.process_reports(loud, aggregation_mode=aggregation_mode)
+        return self.HandlerNode.process_reports(loud)
 
 
 if __name__ == "__main__":
@@ -159,8 +146,6 @@ if __name__ == "__main__":
     DIMENSIONS         = 2
     CONN_PCT           = 0.1
     DENSITY            = 0.8
-    TRAINING_MODE      = "full"  # "partitioned" = JudgeNode routing, "full" = all segments on full dataset
-    AGGREGATION_MODE   = "simple_mean"          # "bma" = relevance/variance weighting, "simple_mean" = equal weight average
 
     # Per-segment colours for the combined graph
     SEG_COLORS = ["steelblue", "tomato", "mediumseagreen", "darkorchid",
@@ -259,16 +244,13 @@ if __name__ == "__main__":
 
     # ── Pre-training inference (all segments equally weighted) ────────────
     logger.console.print(Rule("[bold yellow]Pre-Training Inference[/bold yellow]"))
-    pre_prediction = system.runInfer(sample_raw.copy(), loud=False, aggregation_mode=AGGREGATION_MODE)
+    pre_prediction = system.runInfer(sample_raw.copy(), loud=False)
     logger.log(f"Pre-training prediction: {pre_prediction}", 4, True)
 
     # ── Train ─────────────────────────────────────────────────────────────
     logger.console.print(Rule("[bold green]Training[/bold green]"))
-    if TRAINING_MODE == "full":
-        system.train_full(dataset, epoch_count=EPOCH_COUNT, loud=True)
-    else:
-        system.train(dataset, epoch_count=EPOCH_COUNT, judge_iterations=JUDGE_ITERS, loud=True,
-                     judge_min_clusters=JUDGE_MIN_CLUSTERS, judge_max_clusters=JUDGE_MAX_CLUSTERS)
+    system.train(dataset, epoch_count=EPOCH_COUNT, judge_iterations=JUDGE_ITERS, loud=True,
+                 judge_min_clusters=JUDGE_MIN_CLUSTERS, judge_max_clusters=JUDGE_MAX_CLUSTERS)
 
     # ── Post-train graph ──────────────────────────────────────────────────
     logger.console.print(Rule("[bold yellow]Post-Training Graph[/bold yellow]"))
@@ -277,7 +259,7 @@ if __name__ == "__main__":
 
     # ── Post-training inference ───────────────────────────────────────────
     logger.console.print(Rule("[bold yellow]Post-Training Inference[/bold yellow]"))
-    post_prediction = system.runInfer(sample_raw.copy(), loud=True, aggregation_mode=AGGREGATION_MODE)
+    post_prediction = system.runInfer(sample_raw.copy(), loud=True)
 
     pre_err  = _err_pct(pre_prediction, actual)
     post_err = _err_pct(post_prediction, actual)
@@ -298,7 +280,7 @@ if __name__ == "__main__":
             if _actual_v is None:
                 _prog.update(_task, advance=1)
                 continue
-            _pred = system.runInfer(_row_dict, loud=False, aggregation_mode=AGGREGATION_MODE)
+            _pred = system.runInfer(_row_dict, loud=False)
             if _pred is not None:
                 _sys_preds.append(float(_pred))
                 _sys_actuals.append(float(_actual_v))
@@ -361,8 +343,6 @@ if __name__ == "__main__":
     cfg_table.add_row("Epoch Count",          str(EPOCH_COUNT))
     cfg_table.add_row("Judge Iterations",     str(JUDGE_ITERS))
     cfg_table.add_row("Cluster Count (final)",str(str(len(system.JudgeNode.segment_weights['clusters']))))
-    cfg_table.add_row("Training Mode",        TRAINING_MODE)
-    cfg_table.add_row("Aggregation Mode",     AGGREGATION_MODE)
     logger.console.print(cfg_table)
 
     # ── 2. Segment structure ──────────────────────────────────────────────
