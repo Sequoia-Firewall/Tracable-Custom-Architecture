@@ -196,3 +196,4 @@ v7.2/logs.txt
 *.nexseg
 *.nexseg
 v11/error-epoch.csv
+/v10 analysis/.claude
