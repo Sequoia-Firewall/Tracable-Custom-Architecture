@@ -1,4 +1,5 @@
 import random
+random.seed(42)  # For reproducibility in clustering
 import math
 import numpy as np
 import Logger

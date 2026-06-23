@@ -1,5 +1,5 @@
 class Logger:
-    def __init__(self, filename, log_level):
+    def __init__(self, filename, log_level, console_level=1):
         self.logs_folder = "logs/"
         self.filename = filename
         self.classifications = {
@@ -9,6 +9,7 @@ class Logger:
             1: "[DEBUG]: "             #level 1
         }
         self.log_level = log_level
+        self.console_level = console_level  # minimum classification shown on console (1=all, 3=warn+info only)
         self.log_check_count = 10 # every 10 messages the logger will check for repeated
         self._buffer = []  # list of (message, classification, Loud)
         self._call_count = 0
@@ -43,7 +44,7 @@ class Logger:
             formatted_message = f"{prefix}{message}\n"
             if classification <= self.log_level:
                 file.write(formatted_message)
-            if Loud:
+            if Loud and classification >= self.console_level:
                 print(formatted_message, end='')
         else:
             self._buffer.append((message, classification, Loud))
@@ -76,7 +77,7 @@ class Logger:
                 formatted = f"{prefix}{first_msg}\n"
                 if first_cls <= self.log_level:
                     file.write(formatted)
-                if first_loud:
+                if first_loud and first_cls >= self.console_level:
                     print(formatted, end='')
             else:
                 old_count = self._preamble_counts[preamble]
@@ -87,6 +88,6 @@ class Logger:
                     formatted = f"{prefix}{first_msg} (repeated {new_count}x total)\n"
                     if first_cls <= self.log_level:
                         file.write(formatted)
-                    if first_loud:
+                    if first_loud and first_cls >= self.console_level:
                         print(formatted, end='')
         self._buffer.clear()

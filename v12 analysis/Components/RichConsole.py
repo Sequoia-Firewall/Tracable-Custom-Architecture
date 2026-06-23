@@ -68,10 +68,11 @@ class RichLogger:
         4: "[INFO]: ", 3: "[WARNING]: ", 2: "[ERROR]: ", 1: "[DEBUG]: "
     }
 
-    def __init__(self, filename: str, log_level: int) -> None:
+    def __init__(self, filename: str, log_level: int, console_level: int = 1) -> None:
         self.logs_folder    = "logs/"
         self.filename       = filename
         self.log_level      = log_level
+        self.console_level  = console_level  # minimum classification shown on console (1=all, 3=warn+info only)
         self.console        = Console(theme=_THEME, highlight=False)
         self.log_check_count = 10
         self._buffer        = []   # list of (message, classification, Loud)
@@ -93,7 +94,7 @@ class RichLogger:
                     fh.write(f"{prefix}{message}\n")
             except Exception:
                 pass
-        if Loud:
+        if Loud and classification >= self.console_level:
             style    = _STYLES.get(classification, "log.info")
             label    = _LABELS.get(classification, "INFO")
             safe_msg = escape(message)
