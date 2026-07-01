@@ -417,8 +417,6 @@ class ComparisonManager:
                 f"F1={result.get('f1', float('nan')):.4f}  "
                 f"train={result.get('train_time_sec', '?')}s"
             )
-        except ImportError as e:
-            self._log(f"{idx_tag} {name} skipped — {e}", level=3)
         except Exception as e:
             self._log(f"{name} FAILED — {e}", level=2)
             import traceback
