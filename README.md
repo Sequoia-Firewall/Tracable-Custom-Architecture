@@ -9,9 +9,9 @@ DragonChild is a research project exploring whether a neural network organized l
 
 Most neural networks are black boxes: data goes in, a prediction comes out, and the "why" is buried in thousands of opaque weights. DragonChild instead places nodes at positions in a coordinate space and routes data between them based on geometric distance, the way a signal might hop across a network of relay stations. Along the way, each step tracks its own uncertainty, so the system can say "I'm confident" or "I'm not sure" rather than just guessing. The result is a model whose internal structure can be visualized, traced, and audited step by step.
 
-The project is tested against a concrete benchmark — predicting student exam scores from a tabular dataset — and compared head-to-head against standard machine learning models (linear regression, random forest, gradient boosting, a small MLP, and a CNN) to see whether the added structure is actually worth its cost. The current version (v12 and its evaluation suite) does not yet outperform a plain linear regression on this benchmark, but it shows the architecture's strengths — interpretability, modularity, and built-in uncertainty — clearly enough to be a promising foundation for tasks where those properties matter more than squeezing out the last bit of accuracy (e.g. anomaly or intrusion detection, sketched out in `v12/simulatedattackplan.txt`).
+The project is tested against a concrete benchmark — predicting student exam scores from a tabular dataset — and compared head-to-head against standard machine learning models (linear regression, random forest, gradient boosting, XGBoost, a small MLP, and a CNN) to see whether the added structure is actually worth its cost. The underlying architecture (v12, carried forward unchanged into v13) does not yet outperform a plain linear regression on this benchmark, but it shows the architecture's strengths — interpretability, modularity, and built-in uncertainty — clearly enough to be a promising foundation for tasks where those properties matter more than squeezing out the last bit of accuracy (e.g. anomaly or intrusion detection, sketched out in `v12/simulatedattackplan.txt`).
 
-**Status:** `v11` and `v12` (plus `v12 analysis`) are the current, actively developed line. Everything before `v11` (`v1`–`v10`, `v10Experimental`) is historical and kept for reference only.
+**Status:** `v13` is the current, actively developed version — same Judge/Splitter/Processing/Reviewer/Handler architecture as v11/v12, repackaged as a proper deployable CLI (see below). `v11` and `v12` (plus `v12 analysis`) remain as the prior reference line. Everything before `v11` (`v1`–`v10`, `v10Experimental`) is historical and kept for reference only.
 
 **License:** [MIT](LICENSE)
 
@@ -21,7 +21,20 @@ The project is tested against a concrete benchmark — predicting student exam s
 pip install -r requirements.txt
 ```
 
-Run a model directly (from inside `v12/` or `v12 analysis/`):
+**v13 (current):** everything is driven from `v13/settings.json` through a single CLI entry point — no notebook or hand-written script required.
+
+```bash
+cd v13
+python main.py                 # interactive: prompts for train / infer / compare
+python main.py --mode train    # train a fresh set of segments, save .nexseg files + graphs
+python main.py --mode infer    # load saved .nexseg segments and evaluate a sample
+python main.py --mode compare  # benchmark against the sklearn/XGBoost/CNN baselines
+python main.py my_settings.json --mode train   # point at an alternate settings file
+```
+
+All model, training, logging, output, inference, and comparison options live under their own section in `settings.json` (`model`, `training`, `logging`, `output`, `infer`, `comparison`); anything omitted falls back to the defaults baked into `Settings.py`. Trained segments are persisted to `segment_<i>.nexseg` files so `infer` mode can run without retraining (the JudgeNode's cluster weighting isn't persisted yet, so reloaded segments are weighted equally at inference time).
+
+**v12 / v12 analysis (prior line):** run a model directly, or use the notebooks.
 
 ```python
 from SystemHandler import SystemHandler
@@ -29,13 +42,13 @@ from SystemHandler import SystemHandler
 from SegmentHandler import SegmentHandler
 ```
 
-Or open the evaluation notebooks in `v12 analysis/` (`v12Analysis.ipynb`, `SegmentHandlerAnalysis.ipynb`) with Jupyter to reproduce the benchmark comparisons.
+Open the evaluation notebooks in `v12 analysis/` (`v12Analysis.ipynb`, `SegmentHandlerAnalysis.ipynb`) with Jupyter to reproduce the benchmark comparisons.
 
 ---
 
 ## How it works
 
-v12 is the current reference implementation. A prediction flows through five stages:
+v12/v13 share the same reference architecture (v13 changes packaging, not the math — see [Evolution](#evolution-detailed-history)). A prediction flows through five stages:
 
 1. **PreProcessingNode** — tokenizes/normalizes the raw dataset.
 2. **JudgeNode** — k-means clusters the input space into segments and routes each sample to the most relevant segment(s).
@@ -47,7 +60,9 @@ v12 is the current reference implementation. A prediction flows through five sta
 
 ## Analysis
 
-The `v12 analysis/` folder is the benchmarking and evaluation harness for v12 and is the source of truth for any performance claims:
+`v13`'s `compare` mode (`python main.py --mode compare`) runs the same benchmarking sweep as `v12 analysis/` — `SegmentHandler`/`SystemHandler` against Linear Regression, KNN, Random Forest, XGBoost, MLP, and (optionally) a CNN — via `comparisons/ComparisonManager.py`, appending results to `comparison_results.csv`. No v13 benchmark run has been published yet, so the numbers below are still v12's; treat them as the last known baseline until v13 is re-run.
+
+The `v12 analysis/` folder is the benchmarking and evaluation harness for v12 and is the source of truth for the performance claims below:
 
 - **`v12Analysis.ipynb`** — full `SystemHandler` study against the sklearn/CNN baselines, including a "Claude analysis of results" section covering headline comparisons, an ablation by `max_x`, aggregation-mode comparison, and inference-cost scaling.
 - **`SegmentHandlerAnalysis.ipynb`** — standalone `SegmentHandler` study. Its cell 62 narrative still reflects pre-leak-fix (v10-era) numbers and needs to be rerun and rewritten; the notebook was recently made safe to rerun in isolation (separate `output_csv`/checkpoint namespace via `segment_comparison_results.csv`, `run_system=False`) without disturbing `comparison_results.csv` or the System Handler's cached run.
@@ -77,9 +92,10 @@ The `v12 analysis/` folder is the benchmarking and evaluation harness for v12 an
 | **v7 / v7.1 / v7.2** *(historical)* | Formalized the math: Judge Node computes segment relevance, Splitter computes feature relevance and routes signals by Euclidean distance, Processing nodes apply a Bayesian-style update and forward signals stochastically (distance-weighted random routing), Reviewer/Handler aggregate without learning. Added experiment-tracking (`stats/`, `logs.txt`). |
 | **v8 – v9** *(historical)* | Migrated to the current `Components/` package structure (one class per file) with visualizations of the generated node graph (`nexus_structure.png`) and a dedicated `Train.py`. Still single-system, no baseline comparison or standalone segment evaluation yet. |
 | **v10 / v10Experimental / v10 analysis** *(historical)* | Split the system into **`SegmentHandler`** (train/evaluate one segment in isolation) and **`SystemHandler`** (full Judge-routed, multi-segment system), and introduced the `comparisons/` benchmarking framework (`ComparisonManager`) to score the Nexus against Linear Regression, KNN, Random Forest, Gradient Boosting, MLP, and a CNN baseline on the same data. **Contained a target-leakage bug**: `SegmentHandler` passed the full preprocessed row — including the target column — into node weight initialization, letting a node learn the target's own column directly. This made v10's standalone segment results look artificially strong. |
-| **v11** *(current)* | First fully-wired System Handler with `JudgeNode` k-means clustering for unsupervised segment/cluster discovery and BMA (Bayesian model averaging) aggregation across segments, with a rich `Reports.txt` output (MAE 11.86, R² 0.373 on the exam-score task). |
-| **v12** *(current)* | Same System Handler design as v11, **with the v10 target-leakage bug fixed** (`SegmentHandler` now strips the target column before the forward pass). Modest accuracy improvement over v11 (MAE 10.26, R² 0.546, see `v12/v12 reports.txt`). Also includes `v12/simulatedattackplan.txt`, a forward-looking design doc for repurposing the architecture as an adversarial network-intrusion detector (not yet implemented). |
-| **v12 analysis** *(current)* | A self-contained analysis copy of v12 (own `Components/`, `SegmentHandler.py`, `SystemHandler.py`, `comparisons/`) used purely for evaluation — see Analysis above. |
+| **v11** | First fully-wired System Handler with `JudgeNode` k-means clustering for unsupervised segment/cluster discovery and BMA (Bayesian model averaging) aggregation across segments, with a rich `Reports.txt` output (MAE 11.86, R² 0.373 on the exam-score task). |
+| **v12** | Same System Handler design as v11, **with the v10 target-leakage bug fixed** (`SegmentHandler` now strips the target column before the forward pass). Modest accuracy improvement over v11 (MAE 10.26, R² 0.546, see `v12/v12 reports.txt`). Also includes `v12/simulatedattackplan.txt`, a forward-looking design doc for repurposing the architecture as an adversarial network-intrusion detector (not yet implemented). |
+| **v12 analysis** | A self-contained analysis copy of v12 (own `Components/`, `SegmentHandler.py`, `SystemHandler.py`, `comparisons/`) used purely for evaluation — see Analysis above. |
+| **v13** *(current)* | A deployment refactor, not an architecture change: `Components/` (Processing/Splitter/Reviewer/Handler nodes) and `SegmentHandler.py` are byte-identical to v12; `JudgeNode` only gains a fixed random seed for reproducible clustering. What's new is everything around the model — a single `settings.json` config (validated by a new `Settings.py` loader with sane defaults), a unified `main.py` CLI with `train` / `infer` / `compare` modes and a Rich-console UI, `.nexseg` segment persistence so `infer` mode can evaluate samples without retraining, a slimmed-down `SystemHandler` (558 → 185 lines) built via `SystemHandler.from_settings(...)`, and an XGBoost baseline added to `comparisons/`. |
 
 ## Other folders
 
@@ -88,5 +104,4 @@ The `v12 analysis/` folder is the benchmarking and evaluation harness for v12 an
 
 
 ## Plans:
-- v13: A more simplified deployment strategy
 - v14: Architectural improvements to find ways to improve accuracy and efficiency without major overhaul or compromising the tracability of this architecture.
