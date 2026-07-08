@@ -126,12 +126,14 @@ class ComparisonManager:
     # ── checkpointing ────────────────────────────────────────────────────
 
     def _job_hash(self, dataset_path: str, target: str,
-                  epoch_count: int, max_x_list: list, output_csv: str) -> str:
+                  epoch_count: int, max_x_list: list, system_max_x_list: list,
+                  output_csv: str) -> str:
         key = json.dumps({
             "dataset":    dataset_path,
             "target":     target,
             "epochs":     epoch_count,
             "max_x":      sorted(max_x_list),
+            "system_max_x": sorted(system_max_x_list),
             # Folded into the hash so two notebooks writing to different CSVs
             # (e.g. comparison_results.csv vs segment_comparison_results.csv)
             # never share a checkpoint and silently reuse each other's results.
@@ -140,9 +142,11 @@ class ComparisonManager:
         return hashlib.md5(key.encode()).hexdigest()[:12]
 
     def _init_checkpoint(self, dataset_path: str, target: str,
-                         epoch_count: int, max_x_list: list, output_csv: str):
+                         epoch_count: int, max_x_list: list, system_max_x_list: list,
+                         output_csv: str):
         """Load existing checkpoint if job params match; otherwise start fresh."""
-        job_hash  = self._job_hash(dataset_path, target, epoch_count, max_x_list, output_csv)
+        job_hash  = self._job_hash(dataset_path, target, epoch_count, max_x_list,
+                                    system_max_x_list, output_csv)
         ckpt_path = f"comparison_checkpoint_{job_hash}.json"
         self._checkpoint_path = ckpt_path
 
@@ -169,6 +173,7 @@ class ComparisonManager:
                 "target":     target,
                 "epoch_count":epoch_count,
                 "max_x":      sorted(max_x_list),
+                "system_max_x": sorted(system_max_x_list),
             },
             "completed_models": {},
         }
@@ -256,7 +261,8 @@ class ComparisonManager:
         else:
             agg_modes = list(system_aggregation_modes)
         dataset_path = dataset if isinstance(dataset, str) else "<DataFrame>"
-        self._init_checkpoint(dataset_path, target, epoch_count, list(max_x_values), self._output_csv)
+        self._init_checkpoint(dataset_path, target, epoch_count, list(max_x_values),
+                               list(system_max_x_values), self._output_csv)
 
         # ── Count total models for [X/N] tracking ─────────────────────
         self._model_total = (
