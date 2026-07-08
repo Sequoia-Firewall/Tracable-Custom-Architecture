@@ -67,6 +67,17 @@ class PreProcesingNode:
             key for key, value in data.items() if isinstance(value, str)
         ]
 
+        # Columns holding a list/tuple/Series of strings (e.g. multi-value
+        # fields like a skills list) get multi-hot encoded the same way,
+        # instead of being left as raw string sequences for downstream
+        # numeric code to choke on.
+        multi_categorical_columns = [
+            key for key, value in data.items()
+            if isinstance(value, (list, tuple, pd.Series))
+            and len(value) > 0
+            and all(isinstance(v, str) for v in value)
+        ]
+
         encoded = {}
 
         for col in categorical_columns:
@@ -81,9 +92,24 @@ class PreProcesingNode:
                 encoded[f"{col}_{k}"] = 0
             encoded[f"{col}_{value}"] = 1
 
+        for col in multi_categorical_columns:
+            values = data[col]
+            vocab = self._cat_vocab.setdefault(col, {})
+
+            for value in values:
+                if value not in vocab:
+                    vocab[value] = len(vocab)
+
+            for k in vocab:
+                encoded[f"{col}_{k}"] = 0
+            for value in values:
+                encoded[f"{col}_{value}"] = 1
+
+        handled_columns = set(categorical_columns) | set(multi_categorical_columns)
+
         # Pass through non-categorical
         for k, v in data.items():
-            if k not in categorical_columns:
+            if k not in handled_columns:
                 encoded[k] = v
         self._all_columns.update(encoded.keys())
         for col in self._all_columns:
@@ -98,6 +124,9 @@ class PreProcesingNode:
             # If the value is a sequence/Series of numbers, apply min-max scaling.
             if isinstance(value, (list, tuple, pd.Series)):
                 if len(value) == 0:
+                    continue
+                if not all(isinstance(v, (int, float)) for v in value):
+                    # Non-numeric sequence (e.g. list of strings); skip normalization.
                     continue
                 vmin = min(value)
                 vmax = max(value)
