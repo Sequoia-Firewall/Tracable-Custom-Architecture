@@ -394,10 +394,11 @@ def _compare_job_list(c: dict) -> list[tuple[str, str]]:
     if c.get("run_xgb"):     jobs.append(("XGBoost",            "—"))
     if c.get("run_mlp"):     jobs.append(("MLP",                "—"))
     if c.get("run_cnn"):     jobs.append(("CNN",                "—"))
-    for mx in c.get("segment_max_x", []):
-        if c.get("run_segment"):
+    if c.get("run_segment"):
+        for mx in c.get("segment_max_x", []):
             jobs.append(("SegmentHandler", f"max_x={mx}"))
-        if c.get("run_system"):
+    if c.get("run_system"):
+        for mx in c.get("system_max_x", []):
             for agg in ("bma", "simple_mean", "relevance_weighted"):
                 jobs.append(("SystemHandler", f"max_x={mx}  agg={agg}"))
     return jobs
@@ -463,6 +464,7 @@ def run_compare(settings: Settings, logger) -> None:
         target         = d["target_column"],
         epoch_count    = c.get("epoch_count", 20),
         segment_max_x  = c.get("segment_max_x", [10, 15, 20, 25]),
+        system_max_x   = c.get("system_max_x", [10, 15, 20, 25]),
         run_segment    = c.get("run_segment", True),
         run_cnn        = c.get("run_cnn", False),
         run_linear     = c.get("run_linear", True),

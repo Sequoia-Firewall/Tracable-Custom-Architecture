@@ -62,6 +62,7 @@ _DEFAULTS = {
         "run_mlp": True,
         "run_cnn": False,
         "segment_max_x": [5, 10, 15, 20, 25],
+        "system_max_x": [5, 10, 15, 20, 25],
         "epoch_count": 20,
         "output_csv": "comparison_results.csv",
     },

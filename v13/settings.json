@@ -55,6 +55,7 @@
     "run_mlp": true,
     "run_cnn": false,
     "segment_max_x": [5, 10, 15, 20, 25],
+    "system_max_x": [5, 10, 15, 20, 25],
     "epoch_count": 20,
     "output_csv": "comparison_results.csv"
   }
