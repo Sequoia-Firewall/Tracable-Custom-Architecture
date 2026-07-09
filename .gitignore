@@ -199,3 +199,5 @@ v11/error-epoch.csv
 /v10 analysis/.claude
 /.claude
 error.txt
+TCA1.1.0/comparison_checkpoint_c160cb8acff8.json
+TCA1.1.0/error-epoch.csv
