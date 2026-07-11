@@ -839,6 +839,37 @@ class SegmentHandler:
             errors.append(abs(avg_pred - target_val) / abs(target_val) * 100.0)
         return sum(errors) / len(errors) if errors else float('nan')
 
+    def _eval_epoch_metrics(self, test_list):
+        """Average % error, R², and F1 (median split) across test_list in one forward pass."""
+        predictions, actuals = self._eval_test_predictions(test_list)
+        n = len(predictions)
+        if n == 0:
+            return float('nan'), float('nan'), float('nan')
+
+        errors  = [abs(p - a) / abs(a) * 100.0
+                   for p, a in zip(predictions, actuals) if a != 0]
+        avg_err = sum(errors) / len(errors) if errors else float('nan')
+
+        mean_a = sum(actuals) / n
+        ss_tot = sum((a - mean_a) ** 2 for a in actuals)
+        ss_res = sum((p - a) ** 2 for p, a in zip(predictions, actuals))
+        r2     = 1.0 - ss_res / ss_tot if ss_tot > 0 else float('nan')
+
+        sorted_a   = sorted(actuals)
+        median_a   = sorted_a[n // 2]
+        actual_pos = [1 if a >= median_a else 0 for a in actuals]
+        pred_pos   = [1 if p >= median_a else 0 for p in predictions]
+        tp = sum(1 for ap, pp in zip(actual_pos, pred_pos) if ap == 1 and pp == 1)
+        fp = sum(1 for ap, pp in zip(actual_pos, pred_pos) if ap == 0 and pp == 1)
+        fn = sum(1 for ap, pp in zip(actual_pos, pred_pos) if ap == 1 and pp == 0)
+        precision = tp / (tp + fp) if (tp + fp) > 0 else float('nan')
+        recall    = tp / (tp + fn) if (tp + fn) > 0 else float('nan')
+        f1        = (2 * precision * recall / (precision + recall)
+                     if not math.isnan(precision) and not math.isnan(recall)
+                     and (precision + recall) > 0 else float('nan'))
+
+        return avg_err, r2, f1
+
     # ------------------------------------------------------------------
     # Serialisation
     # ------------------------------------------------------------------
@@ -1104,8 +1135,8 @@ class SegmentHandler:
                         if eval_actual else float('nan')
                     for r in reports
                 }
-                # ── Test-set average error ────────────────────────────
-                test_avg_err = self._eval_avg_error(test_list)
+                # ── Test-set average error, R², F1 ─────────────────────
+                test_avg_err, test_r2, test_f1 = self._eval_epoch_metrics(test_list)
 
                 # ── Per-epoch structure graph ─────────────────────────
                 if self.dimensions == 2:
@@ -1115,6 +1146,7 @@ class SegmentHandler:
                 epoch_history.append({
                     'epoch': epoch + 1, 'loss': loss,
                     'errors': epoch_errs, 'test_avg_error': test_avg_err,
+                    'test_r2': test_r2, 'test_f1': test_f1,
                     'plateau': plateau
                 })
 
@@ -1131,8 +1163,15 @@ class SegmentHandler:
                         classification=4
                     )
 
+                r2_str = f"{test_r2:.4f}" if not math.isnan(test_r2) else "—"
+                f1_str = f"{test_f1:.4f}" if not math.isnan(test_f1) else "—"
+                metrics_line = (
+                    f"Test Avg Error: {test_avg_err:.2f}%  "
+                    f"R²: {r2_str}  F1: {f1_str}"
+                )
                 if not reports:
                     self.display(f"{tag} | Eval: no reviewer predictions.", classification=3)
+                    self.display(f"{tag} | {metrics_line}", classification=4)
                 else:
                     console = getattr(self.logger, 'console', None)
                     if console is not None:
@@ -1157,6 +1196,12 @@ class SegmentHandler:
                                 err,
                             )
                         console.print(eval_table)
+                        console.print(
+                            f"[bold white]{tag}[/bold white]  "
+                            f"[cyan]Test Avg Error:[/cyan] [yellow]{test_avg_err:.2f}%[/yellow]  "
+                            f"[cyan]R²:[/cyan] [yellow]{r2_str}[/yellow]  "
+                            f"[cyan]F1:[/cyan] [yellow]{f1_str}[/yellow]"
+                        )
                     else:
                         for r in reports:
                             pred = r['prediction']
@@ -1167,6 +1212,7 @@ class SegmentHandler:
                                 f"pred={pred:.4f}  actual={eval_actual:.4f}  err={err:.2f}%",
                                 classification=4
                             )
+                        self.display(f"{tag} | {metrics_line}", classification=4)
 
                 if progress:
                     progress.update(epoch_task, advance=1)
@@ -1401,6 +1447,8 @@ if __name__ == "__main__":
         best_train_vals = [v for v in best_e['errors'].values() if not _math.isnan(v)]
         best_train_avg  = sum(best_train_vals) / len(best_train_vals) if best_train_vals else float('nan')
         best_test_avg   = best_e.get('test_avg_error', float('nan'))
+        best_test_r2    = best_e.get('test_r2', float('nan'))
+        best_test_f1    = best_e.get('test_f1', float('nan'))
 
         logger.console.print(Rule("[bold magenta]Best Epoch Summary[/bold magenta]"))
         best_table = Table(box=box.ROUNDED, border_style="magenta", show_lines=True)
@@ -1410,6 +1458,8 @@ if __name__ == "__main__":
         best_table.add_row("Training Loss",       f"{best_e['loss']:.6f}")
         best_table.add_row("Train Avg Error %",   f"{best_train_avg:.2f}%" if not _math.isnan(best_train_avg) else "—")
         best_table.add_row("Test Avg Error %",    f"{best_test_avg:.2f}%"  if not _math.isnan(best_test_avg)  else "—")
+        best_table.add_row("Test R²",             f"{best_test_r2:.4f}"   if not _math.isnan(best_test_r2)   else "—")
+        best_table.add_row("Test F1",             f"{best_test_f1:.4f}"   if not _math.isnan(best_test_f1)   else "—")
         logger.console.print(best_table)
 
     # ── Post-training inference ───────────────────────────────────────
