@@ -58,7 +58,8 @@ class SegmentHandlerWrapper:
             prediction_range_cfg: dict | None = None,
             grad_clip_cfg: dict | None = None,
             delta_clip_cfg: dict | None = None,
-            reconnect_pct: float = 0.005) -> dict:
+            reconnect_pct: float = 0.005,
+            position_momentum: float = 0.0) -> dict:
         """
         Reconstruct DataFrame → call SegmentHandler.train() → read metrics.
         Returns a dict compatible with ComparisonManager.
@@ -105,7 +106,8 @@ class SegmentHandlerWrapper:
         t0 = time.time()
         handler.train(df, epoch_count=epoch_count, lr_scale_cfg=lr_scale_cfg,
                       pred_min=pred_min, pred_max=pred_max, grad_clip_cfg=grad_clip_cfg,
-                      delta_clip_cfg=delta_clip_cfg, reconnect_pct=reconnect_pct)
+                      delta_clip_cfg=delta_clip_cfg, reconnect_pct=reconnect_pct,
+                      position_momentum=position_momentum)
         train_time = time.time() - t0
         _log(f"train() finished in {train_time:.1f}s")
 
@@ -121,9 +123,8 @@ class SegmentHandlerWrapper:
             if not target_val or target_val == 0:
                 continue
             _, reviewer_data = handler._forward_segment(s)
-            preds = [pred for _, _, pred in reviewer_data if pred is not None]
-            if preds:
-                avg = sum(preds) / len(preds)
+            avg = SegmentHandler._aggregate_reviewer_predictions(reviewer_data)
+            if avg is not None:
                 inf_predictions.append(avg)
                 inf_actuals.append(float(target_val))
         inference_time = time.time() - t1
@@ -154,7 +155,8 @@ class SegmentHandlerWrapper:
                 f"pred_range={'manual' if prediction_range_cfg and prediction_range_cfg.get('mode') == 'manual' else ('auto' if prediction_range_cfg else 'off')},"
                 f"grad_clip={'manual' if grad_clip_cfg and grad_clip_cfg.get('mode') == 'manual' else ('auto' if grad_clip_cfg else 'off')},"
                 f"delta_clip={'manual' if delta_clip_cfg and delta_clip_cfg.get('mode') == 'manual' else ('auto' if delta_clip_cfg else 'off')},"
-                f"reconnect_pct={reconnect_pct}"
+                f"reconnect_pct={reconnect_pct},"
+                f"position_momentum={position_momentum}"
             ),
         })
         return result

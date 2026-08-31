@@ -80,6 +80,7 @@ class SystemHandlerWrapper:
         grad_clip_cfg: dict | None = None,
         delta_clip_cfg: dict | None = None,
         reconnect_pct: float = 0.005,
+        position_momentum: float = 0.0,
     ) -> dict:
         """
         Build SystemHandler → initializeAllSegments → train (train split only)
@@ -133,7 +134,8 @@ class SystemHandlerWrapper:
                               prediction_range_cfg=prediction_range_cfg,
                               grad_clip_cfg=grad_clip_cfg,
                               delta_clip_cfg=delta_clip_cfg,
-                              reconnect_pct=reconnect_pct)
+                              reconnect_pct=reconnect_pct,
+                              position_momentum=position_momentum)
         else:
             system.train(
                 train_df,
@@ -147,6 +149,7 @@ class SystemHandlerWrapper:
                 grad_clip_cfg=grad_clip_cfg,
                 delta_clip_cfg=delta_clip_cfg,
                 reconnect_pct=reconnect_pct,
+                position_momentum=position_momentum,
             )
         train_time = time.perf_counter() - t0
         _log(f"Training finished in {train_time:.2f}s")
@@ -203,7 +206,8 @@ class SystemHandlerWrapper:
                 f"pred_range={'manual' if prediction_range_cfg and prediction_range_cfg.get('mode') == 'manual' else ('auto' if prediction_range_cfg else 'off')},"
                 f"grad_clip={'manual' if grad_clip_cfg and grad_clip_cfg.get('mode') == 'manual' else ('auto' if grad_clip_cfg else 'off')},"
                 f"delta_clip={'manual' if delta_clip_cfg and delta_clip_cfg.get('mode') == 'manual' else ('auto' if delta_clip_cfg else 'off')},"
-                f"reconnect_pct={reconnect_pct}"
+                f"reconnect_pct={reconnect_pct},"
+                f"position_momentum={position_momentum}"
             ),
         })
         return result

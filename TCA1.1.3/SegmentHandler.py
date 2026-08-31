@@ -329,10 +329,19 @@ class SegmentHandler:
             for rev in reviewers:
                 collected_pct = len([s for s in rev.signals if s.collected]) / len(rev.signals) if rev.signals else 0
                 self.display(f"Reviewer {rev.position} signal collected %: {collected_pct:.2%}", classification=4, Loud=loud)
+                rev_signals = list(rev.signals)  # snapshot before review_signals() clears it
                 prediction = rev.review_signals()
                 if prediction is not None:
                     self.display(f"Reviewer {rev.position} prediction: {prediction}", classification=4, Loud=loud)
-                    reports.append({'id': self.segment_id, 'prediction': prediction, 'reviewer_position': rev.position})
+                    # Confidence = inverse of this reviewer's mean signal variance,
+                    # so HandlerNode can weight reviewers within a segment by how
+                    # smooth/unattenuated their collected signals' paths were,
+                    # instead of a flat unweighted mean across reviewers.
+                    variances = [s.variance for s in rev_signals if s.is_active()]
+                    mean_var  = sum(variances) / len(variances) if variances else 1e-9
+                    confidence = 1.0 / max(mean_var, 1e-9)
+                    reports.append({'id': self.segment_id, 'prediction': prediction,
+                                     'reviewer_position': rev.position, 'confidence': confidence})
 
             return reports
         if self.logger is None:
@@ -538,6 +547,34 @@ class SegmentHandler:
 
         return signals, reviewer_data
 
+    @staticmethod
+    def _aggregate_reviewer_predictions(reviewer_data):
+        """Confidence-weighted average across a segment's reviewers.
+
+        Each reviewer's own prediction is already an inverse-variance-weighted
+        average across the signals *it* collected (ReviewerNode.review_signals).
+        This applies the same inverse-variance weighting one level up, across
+        reviewers, instead of the flat unweighted mean previously used here —
+        a reviewer whose signals arrived with lower accumulated variance (a
+        smoother, less-attenuated path) is trusted more than one whose signals
+        drifted a lot en route. Falls back to a flat mean if no reviewer has
+        any variance information (e.g. all signals expired before collection).
+        """
+        weighted_sum = 0.0
+        weight_sum   = 0.0
+        for _, rev_signals, prediction in reviewer_data:
+            if prediction is None:
+                continue
+            variances = [s.variance for s in rev_signals if s.is_active()]
+            mean_var  = sum(variances) / len(variances) if variances else 1e-9
+            w = 1.0 / max(mean_var, 1e-9)
+            weighted_sum += prediction * w
+            weight_sum   += w
+
+        if weight_sum == 0.0:
+            return None
+        return weighted_sum / weight_sum
+
     # ------------------------------------------------------------------
     # Loss & backprop
     # ------------------------------------------------------------------
@@ -611,7 +648,7 @@ class SegmentHandler:
     # ------------------------------------------------------------------
 
     def _epoch(self, sample_list, lr_w, lr_p, lr_s, desc, freeze_connections=False,
-               reconnect_pct=0.005):
+               reconnect_pct=0.005, position_momentum=0.0):
         """
         One epoch: for each sample — single forward pass, then
           1. weight update  (lr_w)
@@ -625,6 +662,9 @@ class SegmentHandler:
                        0 reconnects after every sample (pre-throttling
                        behavior); the default 0.005 reconnects roughly every
                        0.5% of samples.
+        position_momentum : EMA coefficient for position-gradient steps
+                       (settings.training.position_momentum). 0.0 (default)
+                       reduces to the original raw-gradient step exactly.
         """
         if self.segmentComponents is None:
             raise ValueError("Segment not initialized. Call initializeSegment() first.")
@@ -671,7 +711,8 @@ class SegmentHandler:
                 # 2. Position update — bounds enforced inside apply_position_gradient
                 self._backprop(reviewer_data, target, 'positions')
                 for node in processing_nodes:
-                    node.apply_position_gradient(lr_p, self.MAX_POSITION_STEP, self.max_x)
+                    node.apply_position_gradient(lr_p, self.MAX_POSITION_STEP, self.max_x,
+                                                 momentum=position_momentum)
                     node.position_gradient = [0.0] * len(node.position)
                 # Reconnect after positions shift, throttled (skipped entirely during plateau)
                 if not freeze_connections and (i + 1) % reconnect_every == 0:
@@ -741,10 +782,10 @@ class SegmentHandler:
                     continue
                 features = {k: v for k, v in sample.items() if k != self.target}
                 _, reviewer_data = self._forward_segment(features)
-                preds = [pred for _, _, pred in reviewer_data if pred is not None]
-                if not preds:
+                agg_pred = self._aggregate_reviewer_predictions(reviewer_data)
+                if agg_pred is None:
                     continue
-                predictions.append(sum(preds) / len(preds))
+                predictions.append(agg_pred)
                 actuals.append(float(target_val))
             return predictions, actuals
         finally:
@@ -925,10 +966,9 @@ class SegmentHandler:
                 continue
             features = {k: v for k, v in sample.items() if k != self.target}
             _, reviewer_data = self._forward_segment(features)
-            preds = [pred for _, _, pred in reviewer_data if pred is not None]
-            if not preds:
+            avg_pred = self._aggregate_reviewer_predictions(reviewer_data)
+            if avg_pred is None:
                 continue
-            avg_pred = sum(preds) / len(preds)
             errors.append(abs(avg_pred - target_val) / abs(target_val) * 100.0)
         return sum(errors) / len(errors) if errors else float('nan')
 
@@ -1045,7 +1085,7 @@ class SegmentHandler:
 
     def train(self, dataset, epoch_count=3, preprocessor=None, lr_scale_cfg=None,
               pred_min=None, pred_max=None, grad_clip_cfg=None, delta_clip_cfg=None,
-              visualization_enabled=False, reconnect_pct=0.005):
+              visualization_enabled=False, reconnect_pct=0.005, position_momentum=0.0):
         """
         Train the segment on a dataset.
 
@@ -1095,6 +1135,10 @@ class SegmentHandler:
                        topology reconnects (settings.training.reconnect_pct).
                        See _epoch() for details; 0 disables throttling
                        (reconnect every sample).
+        position_momentum : EMA coefficient for position-gradient steps
+                       (settings.training.position_momentum). 0.0 (default)
+                       reduces to the original raw-gradient step exactly —
+                       opt-in only.
         """
         import os
         import datetime as _dt
@@ -1253,7 +1297,8 @@ class SegmentHandler:
 
                 loss = self._epoch(sample_list, lr_w, lr_p, lr_s, tag,
                                    freeze_connections=plateau,
-                                   reconnect_pct=reconnect_pct)
+                                   reconnect_pct=reconnect_pct,
+                                   position_momentum=position_momentum)
                 delta = abs(prev_loss - loss)
                 self.display(
                     f"{tag} | Loss: {loss:.6f}  delta: {delta:.2e}",

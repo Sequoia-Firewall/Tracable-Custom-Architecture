@@ -132,6 +132,7 @@ class ComparisonManager:
                   grad_clip_cfg: dict | None = None,
                   delta_clip_cfg: dict | None = None,
                   reconnect_pct: float = 0.005,
+                  position_momentum: float = 0.0,
                   ignored_columns: list | None = None,
                   shuffle: bool = False, shuffle_seed: int | None = None,
                   test_split: float = 0.2,
@@ -154,6 +155,7 @@ class ComparisonManager:
             "grad_clip_cfg": grad_clip_cfg,
             "delta_clip_cfg": delta_clip_cfg,
             "reconnect_pct": reconnect_pct,
+            "position_momentum": position_momentum,
             "ignored_columns": sorted(ignored_columns) if ignored_columns else None,
             "shuffle": shuffle,
             "shuffle_seed": shuffle_seed,
@@ -170,6 +172,7 @@ class ComparisonManager:
                          grad_clip_cfg: dict | None = None,
                          delta_clip_cfg: dict | None = None,
                          reconnect_pct: float = 0.005,
+                         position_momentum: float = 0.0,
                          ignored_columns: list | None = None,
                          shuffle: bool = False, shuffle_seed: int | None = None,
                          test_split: float = 0.2,
@@ -179,7 +182,7 @@ class ComparisonManager:
         job_hash  = self._job_hash(dataset_path, target, epoch_count, max_x_list,
                                     system_max_x_list, output_csv, lr_scale_cfg,
                                     prediction_range_cfg, grad_clip_cfg, delta_clip_cfg,
-                                    reconnect_pct,
+                                    reconnect_pct, position_momentum,
                                     ignored_columns, shuffle, shuffle_seed, test_split,
                                     connection_percentage, density)
         ckpt_path = f"comparison_checkpoint_{job_hash}.json"
@@ -214,6 +217,7 @@ class ComparisonManager:
                 "grad_clip_cfg": grad_clip_cfg,
                 "delta_clip_cfg": delta_clip_cfg,
                 "reconnect_pct": reconnect_pct,
+                "position_momentum": position_momentum,
                 "ignored_columns": ignored_columns,
                 "shuffle": shuffle,
                 "shuffle_seed": shuffle_seed,
@@ -271,6 +275,7 @@ class ComparisonManager:
         grad_clip_cfg: dict | None = None,
         delta_clip_cfg: dict | None = None,
         reconnect_pct: float = 0.005,
+        position_momentum: float = 0.0,
         ignored_columns: list | None = None,
         shuffle: bool = False,
         shuffle_seed: int = 42,
@@ -313,6 +318,11 @@ class ComparisonManager:
                          throttling (reconnect every sample) — set this to 0
                          vs. the default to isolate throttling's effect in
                          an ablation test.
+        position_momentum : EMA coefficient for position-gradient steps —
+                         forwarded to SegmentHandler/SystemHandler training
+                         exactly as in normal train mode (see
+                         settings.training.position_momentum). 0.0 (default)
+                         reduces to the original raw-gradient step exactly.
         ignored_columns : optional list of raw column names to drop before
                          preprocessing (see settings.dataset.ignored_columns).
                          Applies to every model — sklearn/CNN baselines and
@@ -357,7 +367,8 @@ class ComparisonManager:
         self._init_checkpoint(dataset_path, target, epoch_count, list(max_x_values),
                                list(system_max_x_values), self._output_csv,
                                lr_scale_cfg, prediction_range_cfg, grad_clip_cfg,
-                               delta_clip_cfg, reconnect_pct, ignored_columns, shuffle,
+                               delta_clip_cfg, reconnect_pct, position_momentum,
+                               ignored_columns, shuffle,
                                shuffle_seed, test_split, connection_percentage, density)
 
         # ── Count total models for [X/N] tracking ─────────────────────
@@ -473,6 +484,7 @@ class ComparisonManager:
                         grad_clip_cfg=grad_clip_cfg,
                         delta_clip_cfg=delta_clip_cfg,
                         reconnect_pct=reconnect_pct,
+                        position_momentum=position_momentum,
                         **common,
                     ),
                 )
@@ -500,6 +512,7 @@ class ComparisonManager:
                             grad_clip_cfg=grad_clip_cfg,
                             delta_clip_cfg=delta_clip_cfg,
                             reconnect_pct=reconnect_pct,
+                            position_momentum=position_momentum,
                             **common,
                         ),
                     )
@@ -583,7 +596,8 @@ class ComparisonManager:
                       prediction_range_cfg: dict | None = None,
                       grad_clip_cfg: dict | None = None,
                       delta_clip_cfg: dict | None = None,
-                      reconnect_pct: float = 0.005, **kw):
+                      reconnect_pct: float = 0.005,
+                      position_momentum: float = 0.0, **kw):
         from comparisons.SegmentHandlerWrapper import SegmentHandlerWrapper
         wrapper = SegmentHandlerWrapper(max_x=max_x, connection_percentage=connection_percentage,
                                          density=density)
@@ -599,6 +613,7 @@ class ComparisonManager:
             grad_clip_cfg=grad_clip_cfg,
             delta_clip_cfg=delta_clip_cfg,
             reconnect_pct=reconnect_pct,
+            position_momentum=position_momentum,
         )
 
     def _run_system(
@@ -619,6 +634,7 @@ class ComparisonManager:
         grad_clip_cfg:        dict | None = None,
         delta_clip_cfg:       dict | None = None,
         reconnect_pct:        float = 0.005,
+        position_momentum:    float = 0.0,
         **kw,
     ):
         from comparisons.SystemHandlerWrapper import SystemHandlerWrapper
@@ -646,6 +662,7 @@ class ComparisonManager:
             grad_clip_cfg=grad_clip_cfg,
             delta_clip_cfg=delta_clip_cfg,
             reconnect_pct=reconnect_pct,
+            position_momentum=position_momentum,
         )
 
     # ── CSV persistence ───────────────────────────────────────────────────

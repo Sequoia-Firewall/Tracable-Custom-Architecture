@@ -104,7 +104,8 @@ class SystemHandler:
               judge_min_clusters: int | None = None, judge_max_clusters: int | None = None,
               lr_scale_cfg: dict | None = None, prediction_range_cfg: dict | None = None,
               grad_clip_cfg: dict | None = None, delta_clip_cfg: dict | None = None,
-              visualization_enabled: bool = False, reconnect_pct: float = 0.005) -> None:
+              visualization_enabled: bool = False, reconnect_pct: float = 0.005,
+              position_momentum: float = 0.0) -> None:
         from collections import defaultdict
         if not self.segments:
             raise ValueError("Segments must be initialized before training. Call initializeAllSegments() first.")
@@ -153,12 +154,13 @@ class SystemHandler:
                           lr_scale_cfg=lr_scale_cfg, pred_min=pred_min, pred_max=pred_max,
                           grad_clip_cfg=grad_clip_cfg, delta_clip_cfg=delta_clip_cfg,
                           visualization_enabled=visualization_enabled,
-                          reconnect_pct=reconnect_pct)
+                          reconnect_pct=reconnect_pct, position_momentum=position_momentum)
 
     def train_full(self, dataset, epoch_count: int = 5, loud: bool = True,
                     lr_scale_cfg: dict | None = None, prediction_range_cfg: dict | None = None,
                     grad_clip_cfg: dict | None = None, delta_clip_cfg: dict | None = None,
-                    visualization_enabled: bool = False, reconnect_pct: float = 0.005) -> None:
+                    visualization_enabled: bool = False, reconnect_pct: float = 0.005,
+                    position_momentum: float = 0.0) -> None:
         """Train every segment on the complete dataset (no JudgeNode partitioning).
         JudgeNode routing still works at inference — clusters are built on the
         full dataset so all segments see the same data distribution during training."""
@@ -173,7 +175,7 @@ class SystemHandler:
                           lr_scale_cfg=lr_scale_cfg, pred_min=pred_min, pred_max=pred_max,
                           grad_clip_cfg=grad_clip_cfg, delta_clip_cfg=delta_clip_cfg,
                           visualization_enabled=visualization_enabled,
-                          reconnect_pct=reconnect_pct)
+                          reconnect_pct=reconnect_pct, position_momentum=position_momentum)
 
     def runInfer(self, input, loud = True, aggregation_mode: str = "bma", selection_percentage: float = .5):
         if self.JudgeNode is None or self.HandlerNode is None:
@@ -205,7 +207,8 @@ class SystemHandler:
             segment = segment_map[segment_id]
             reports = segment.segmentInfer(seg_input, loud=loud)
             for report in reports:
-                self.HandlerNode.receive_report(segment_id, relevance, report['prediction'])
+                self.HandlerNode.receive_report(segment_id, relevance, report['prediction'],
+                                                confidence=report.get('confidence', 1.0))
 
         return self.HandlerNode.process_reports(loud, aggregation_mode=aggregation_mode)
 

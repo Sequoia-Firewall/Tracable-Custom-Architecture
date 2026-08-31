@@ -66,6 +66,12 @@ _DEFAULTS = {
                                   # of every sample. Set to 0 to reconnect after every
                                   # sample (pre-throttling behavior) — useful for
                                   # isolating throttling's effect in an ablation test.
+        "position_momentum": 0.0,  # EMA coefficient for position-gradient steps
+                                     # (velocity = position_momentum * velocity + gradient).
+                                     # 0.0 (default) reduces to the original raw-gradient
+                                     # step exactly. Opt-in — 1.1.3 ablation testing found
+                                     # it helps mid-size graphs but hurts small ones (max_x=5),
+                                     # so it's off by default rather than baked in.
     },
     "logging": {
         "log_level": 4,
@@ -196,6 +202,10 @@ class Settings:
         reconnect_pct = self._data["training"].get("reconnect_pct", 0.005)
         if reconnect_pct < 0 or reconnect_pct > 1:
             raise ValueError("settings.json: training.reconnect_pct must be in [0, 1]")
+
+        position_momentum = self._data["training"].get("position_momentum", 0.0)
+        if position_momentum < 0 or position_momentum >= 1:
+            raise ValueError("settings.json: training.position_momentum must be in [0, 1)")
 
         pr = self._data["dataset"].get("prediction_range", {})
         pr_mode = pr.get("mode", "auto")

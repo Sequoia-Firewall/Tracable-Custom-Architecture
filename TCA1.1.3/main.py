@@ -189,6 +189,7 @@ def run_train(settings: Settings, logger) -> None:
     cfg.add_row("Delta clip",       f"manual {dc.get('value')}"
                                      if dc.get("mode") == "manual" else "auto (derived from segment topology)")
     cfg.add_row("Reconnect %",      str(t.get("reconnect_pct", 0.005)))
+    cfg.add_row("Position momentum",str(t.get("position_momentum", 0.0)))
     cfg.add_row("Visualization",    str(out.get("visualization_enabled", False)))
     console.print(cfg)
 
@@ -246,7 +247,8 @@ def run_train(settings: Settings, logger) -> None:
                           grad_clip_cfg=t.get("grad_clip"),
                           delta_clip_cfg=t.get("delta_clip"),
                           visualization_enabled=viz_enabled,
-                          reconnect_pct=t.get("reconnect_pct", 0.005))
+                          reconnect_pct=t.get("reconnect_pct", 0.005),
+                          position_momentum=t.get("position_momentum", 0.0))
     else:
         system.train(dataset,
                      epoch_count=t["epoch_count"],
@@ -259,7 +261,8 @@ def run_train(settings: Settings, logger) -> None:
                      grad_clip_cfg=t.get("grad_clip"),
                      delta_clip_cfg=t.get("delta_clip"),
                      visualization_enabled=viz_enabled,
-                     reconnect_pct=t.get("reconnect_pct", 0.005))
+                     reconnect_pct=t.get("reconnect_pct", 0.005),
+                     position_momentum=t.get("position_momentum", 0.0))
 
     if out.get("save_posttrain_graph", True):
         _save_system_graph(system, out.get("posttrain_graph_path", "nexus_posttrain.png"),
@@ -475,7 +478,8 @@ def run_compare(settings: Settings, logger) -> None:
                   f"Shuffle: {d.get('shuffle', True)}  |  "
                   f"Test split: {int(t.get('test_split', 0.2) * 100)}%  |  "
                   f"Delta clip: {'manual ' + str(t.get('delta_clip', {}).get('value')) if t.get('delta_clip', {}).get('mode') == 'manual' else 'auto'}  |  "
-                  f"Reconnect %: {t.get('reconnect_pct', 0.005)}[/dim]\n")
+                  f"Reconnect %: {t.get('reconnect_pct', 0.005)}  |  "
+                  f"Position momentum: {t.get('position_momentum', 0.0)}[/dim]\n")
 
     # ── Warn if output CSV already exists ─────────────────────────────────
     csv_path = c.get("output_csv", "comparison_results.csv")
@@ -524,6 +528,7 @@ def run_compare(settings: Settings, logger) -> None:
         grad_clip_cfg  = t.get("grad_clip"),
         delta_clip_cfg = t.get("delta_clip"),
         reconnect_pct  = t.get("reconnect_pct", 0.005),
+        position_momentum = t.get("position_momentum", 0.0),
         ignored_columns = d.get("ignored_columns") or None,
         shuffle        = d.get("shuffle", True),
         test_split     = t.get("test_split", 0.2),

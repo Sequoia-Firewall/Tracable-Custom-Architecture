@@ -43,13 +43,14 @@
       "mode": "manual",
       "value": 10
     },
-    "reconnect_pct": 0.0
+    "reconnect_pct": 0.0,
+    "position_momentum": 0.0
   },
 
   "logging": {
     "log_level": 4,
     "console_level": 4,
-    "filename_prefix": "TCA1.1.2_run"
+    "filename_prefix": "TCA1.1.3_run"
   },
 
   "output": {
@@ -75,9 +76,9 @@
     "run_xgb": true,
     "run_mlp": true,
     "run_cnn": false,
-    "segment_max_x": [5, 10, 15, 20, 25],
-    "system_max_x": [5, 10, 15, 20, 25],
+    "segment_max_x": [5, 15, 25],
+    "system_max_x": [5, 15, 25],
     "epoch_count": 20,
-    "output_csv": "ArchOnlyManualFullRun_results112.csv"
+    "output_csv": "NetBenefit_results113.csv"
   }
 }
