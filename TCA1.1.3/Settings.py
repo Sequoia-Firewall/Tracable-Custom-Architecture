@@ -72,6 +72,19 @@ _DEFAULTS = {
                                      # step exactly. Opt-in — 1.1.3 ablation testing found
                                      # it helps mid-size graphs but hurts small ones (max_x=5),
                                      # so it's off by default rather than baked in.
+        "feature_pruning_enabled": False,  # experimental: JudgeNode screens features by
+                                     # cluster relevance, each segment confirms candidates
+                                     # against real learned weight magnitude before
+                                     # freezing (stop updating) then removing (drop from
+                                     # the forward pass) any of them. SystemHandler /
+                                     # training_mode='partitioned' only — no effect on
+                                     # SegmentHandler or training_mode='full' (neither
+                                     # uses JudgeNode clustering). Off by default: a
+                                     # full-scale ablation on this dataset never found a
+                                     # feature worth pruning at the default threshold
+                                     # (SegmentHandler.FEATURE_FREEZE_WEIGHT_THRESHOLD) —
+                                     # may behave differently on larger/higher-dimensional
+                                     # datasets with more genuinely redundant columns.
     },
     "logging": {
         "log_level": 4,

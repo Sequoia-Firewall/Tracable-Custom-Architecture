@@ -133,6 +133,7 @@ class ComparisonManager:
                   delta_clip_cfg: dict | None = None,
                   reconnect_pct: float = 0.005,
                   position_momentum: float = 0.0,
+                  feature_pruning_enabled: bool = False,
                   ignored_columns: list | None = None,
                   shuffle: bool = False, shuffle_seed: int | None = None,
                   test_split: float = 0.2,
@@ -156,6 +157,7 @@ class ComparisonManager:
             "delta_clip_cfg": delta_clip_cfg,
             "reconnect_pct": reconnect_pct,
             "position_momentum": position_momentum,
+            "feature_pruning_enabled": feature_pruning_enabled,
             "ignored_columns": sorted(ignored_columns) if ignored_columns else None,
             "shuffle": shuffle,
             "shuffle_seed": shuffle_seed,
@@ -173,6 +175,7 @@ class ComparisonManager:
                          delta_clip_cfg: dict | None = None,
                          reconnect_pct: float = 0.005,
                          position_momentum: float = 0.0,
+                         feature_pruning_enabled: bool = False,
                          ignored_columns: list | None = None,
                          shuffle: bool = False, shuffle_seed: int | None = None,
                          test_split: float = 0.2,
@@ -182,7 +185,7 @@ class ComparisonManager:
         job_hash  = self._job_hash(dataset_path, target, epoch_count, max_x_list,
                                     system_max_x_list, output_csv, lr_scale_cfg,
                                     prediction_range_cfg, grad_clip_cfg, delta_clip_cfg,
-                                    reconnect_pct, position_momentum,
+                                    reconnect_pct, position_momentum, feature_pruning_enabled,
                                     ignored_columns, shuffle, shuffle_seed, test_split,
                                     connection_percentage, density)
         ckpt_path = f"comparison_checkpoint_{job_hash}.json"
@@ -218,6 +221,7 @@ class ComparisonManager:
                 "delta_clip_cfg": delta_clip_cfg,
                 "reconnect_pct": reconnect_pct,
                 "position_momentum": position_momentum,
+                "feature_pruning_enabled": feature_pruning_enabled,
                 "ignored_columns": ignored_columns,
                 "shuffle": shuffle,
                 "shuffle_seed": shuffle_seed,
@@ -276,6 +280,7 @@ class ComparisonManager:
         delta_clip_cfg: dict | None = None,
         reconnect_pct: float = 0.005,
         position_momentum: float = 0.0,
+        feature_pruning_enabled: bool = False,
         ignored_columns: list | None = None,
         shuffle: bool = False,
         shuffle_seed: int = 42,
@@ -323,6 +328,12 @@ class ComparisonManager:
                          exactly as in normal train mode (see
                          settings.training.position_momentum). 0.0 (default)
                          reduces to the original raw-gradient step exactly.
+        feature_pruning_enabled : experimental, off by default — forwarded to
+                         SystemHandler training only (see settings.training.
+                         feature_pruning_enabled and SystemHandler.train()'s
+                         docstring). No effect on SegmentHandler jobs or
+                         SystemHandler jobs run with training_mode='full'
+                         (neither uses JudgeNode clustering).
         ignored_columns : optional list of raw column names to drop before
                          preprocessing (see settings.dataset.ignored_columns).
                          Applies to every model — sklearn/CNN baselines and
@@ -368,6 +379,7 @@ class ComparisonManager:
                                list(system_max_x_values), self._output_csv,
                                lr_scale_cfg, prediction_range_cfg, grad_clip_cfg,
                                delta_clip_cfg, reconnect_pct, position_momentum,
+                               feature_pruning_enabled,
                                ignored_columns, shuffle,
                                shuffle_seed, test_split, connection_percentage, density)
 
@@ -513,6 +525,7 @@ class ComparisonManager:
                             delta_clip_cfg=delta_clip_cfg,
                             reconnect_pct=reconnect_pct,
                             position_momentum=position_momentum,
+                            feature_pruning_enabled=feature_pruning_enabled,
                             **common,
                         ),
                     )
@@ -635,6 +648,7 @@ class ComparisonManager:
         delta_clip_cfg:       dict | None = None,
         reconnect_pct:        float = 0.005,
         position_momentum:    float = 0.0,
+        feature_pruning_enabled: bool = False,
         **kw,
     ):
         from comparisons.SystemHandlerWrapper import SystemHandlerWrapper
@@ -663,6 +677,7 @@ class ComparisonManager:
             delta_clip_cfg=delta_clip_cfg,
             reconnect_pct=reconnect_pct,
             position_momentum=position_momentum,
+            feature_pruning_enabled=feature_pruning_enabled,
         )
 
     # ── CSV persistence ───────────────────────────────────────────────────

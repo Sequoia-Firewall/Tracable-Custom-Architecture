@@ -10,6 +10,20 @@ from Components.PreProcessingNode import PreProcesingNode
 from Components.HandlerNode import HandlerNode
 
 class SystemHandler:
+    # Bottom fraction of features (by JudgeNode.compute_feature_relevance()'s
+    # between/within cluster-variance ratio, ascending) passed to each segment
+    # as freeze/remove screening candidates when feature_pruning_enabled=True.
+    # This is only a cheap unsupervised PRE-FILTER — the actual freeze/remove
+    # decision is made per-segment from real learned weight magnitude (see
+    # SegmentHandler._update_feature_pruning). Experimental — off by default
+    # (training.feature_pruning_enabled): a full-scale ablation on this
+    # dataset never found a feature worth pruning at the default threshold
+    # (SegmentHandler.FEATURE_FREEZE_WEIGHT_THRESHOLD), so it's shipped as an
+    # opt-in rather than a default-on behavior change. May behave differently
+    # on larger/higher-dimensional datasets with more genuinely redundant
+    # columns — worth revisiting there.
+    CANDIDATE_FEATURE_FRACTION = 0.3
+
     def __init__(self, maxX, target='exam_score', logger = None, connection_percentage=.08, density = .95, dimensions = 2, classification = 1, removable_columns=None):
         self.dimensions = dimensions
         self.max_x = maxX
@@ -105,7 +119,19 @@ class SystemHandler:
               lr_scale_cfg: dict | None = None, prediction_range_cfg: dict | None = None,
               grad_clip_cfg: dict | None = None, delta_clip_cfg: dict | None = None,
               visualization_enabled: bool = False, reconnect_pct: float = 0.005,
-              position_momentum: float = 0.0) -> None:
+              position_momentum: float = 0.0, feature_pruning_enabled: bool = False) -> None:
+        """
+        feature_pruning_enabled : experimental, off by default (settings.
+                       training.feature_pruning_enabled). When True, JudgeNode
+                       screens features by cluster relevance and each segment
+                       independently confirms candidates against real learned
+                       weight magnitude before freezing/removing anything (see
+                       SegmentHandler._update_feature_pruning). A full-scale
+                       ablation on this dataset never found a feature worth
+                       pruning at the default threshold — kept opt-in rather
+                       than default-on; may behave differently on larger or
+                       higher-dimensional datasets.
+        """
         from collections import defaultdict
         if not self.segments:
             raise ValueError("Segments must be initialized before training. Call initializeAllSegments() first.")
@@ -123,6 +149,24 @@ class SystemHandler:
         self.JudgeNode.train(judge_input, judge_iterations, segments=self.segments,
                              min_clusters=judge_min_clusters, max_clusters=judge_max_clusters)
         self.display("JudgeNode training complete. Proceeding to segment training...", Loud=loud)
+
+        # Step 1b: Screen for low cluster-relevance features. Cheap, unsupervised
+        # pre-filter only — each segment independently confirms (or rejects) these
+        # candidates against its own actual learned weight magnitude before ever
+        # freezing/removing anything (see SegmentHandler._update_feature_pruning).
+        # Off by default — see feature_pruning_enabled docstring above.
+        candidate_features = []
+        if feature_pruning_enabled:
+            feature_relevance = self.JudgeNode.compute_feature_relevance()
+            if feature_relevance:
+                n_candidates = max(1, int(len(feature_relevance) * self.CANDIDATE_FEATURE_FRACTION))
+                candidate_features = list(feature_relevance.keys())[:n_candidates]
+                self.display(
+                    f"JudgeNode flagged {len(candidate_features)}/{len(feature_relevance)} "
+                    f"low cluster-relevance candidate feature(s) for freeze/remove "
+                    f"screening: {candidate_features}",
+                    Loud=loud
+                )
 
         # Step 2: Map each cluster's points back to original dataset row indices.
         # Use the same target-dropped view for the lookup so tuple keys match cluster points.
@@ -154,7 +198,8 @@ class SystemHandler:
                           lr_scale_cfg=lr_scale_cfg, pred_min=pred_min, pred_max=pred_max,
                           grad_clip_cfg=grad_clip_cfg, delta_clip_cfg=delta_clip_cfg,
                           visualization_enabled=visualization_enabled,
-                          reconnect_pct=reconnect_pct, position_momentum=position_momentum)
+                          reconnect_pct=reconnect_pct, position_momentum=position_momentum,
+                          candidate_features=candidate_features)
 
     def train_full(self, dataset, epoch_count: int = 5, loud: bool = True,
                     lr_scale_cfg: dict | None = None, prediction_range_cfg: dict | None = None,

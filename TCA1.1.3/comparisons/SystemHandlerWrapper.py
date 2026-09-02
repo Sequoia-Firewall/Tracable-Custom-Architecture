@@ -81,6 +81,7 @@ class SystemHandlerWrapper:
         delta_clip_cfg: dict | None = None,
         reconnect_pct: float = 0.005,
         position_momentum: float = 0.0,
+        feature_pruning_enabled: bool = False,
     ) -> dict:
         """
         Build SystemHandler → initializeAllSegments → train (train split only)
@@ -150,9 +151,17 @@ class SystemHandlerWrapper:
                 delta_clip_cfg=delta_clip_cfg,
                 reconnect_pct=reconnect_pct,
                 position_momentum=position_momentum,
+                feature_pruning_enabled=feature_pruning_enabled,
             )
         train_time = time.perf_counter() - t0
         _log(f"Training finished in {train_time:.2f}s")
+
+        # ── Feature-pruning summary across segments (no-op / empty sets when
+        #    feature_pruning_enabled=False or training_mode='full') ──
+        frozen_total  = sum(len(s.frozen_features) for s in system.segments)
+        removed_total = sum(len(s.removed_features) for s in system.segments)
+        if frozen_total or removed_total:
+            _log(f"Feature pruning across segments — frozen: {frozen_total}, removed: {removed_total}")
 
         # ── Inference pass on test split (timed) ──────────────────────
         _log(f"Timing inference on {len(test_records)} test samples…")
@@ -207,7 +216,10 @@ class SystemHandlerWrapper:
                 f"grad_clip={'manual' if grad_clip_cfg and grad_clip_cfg.get('mode') == 'manual' else ('auto' if grad_clip_cfg else 'off')},"
                 f"delta_clip={'manual' if delta_clip_cfg and delta_clip_cfg.get('mode') == 'manual' else ('auto' if delta_clip_cfg else 'off')},"
                 f"reconnect_pct={reconnect_pct},"
-                f"position_momentum={position_momentum}"
+                f"position_momentum={position_momentum},"
+                f"feature_pruning_enabled={feature_pruning_enabled},"
+                f"frozen_features={frozen_total},"
+                f"removed_features={removed_total}"
             ),
         })
         return result

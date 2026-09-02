@@ -80,6 +80,11 @@ class RichLogger:
         self._preamble_counts = {}  # preamble -> total count seen
         self._preamble_log_threshold = 1000  # write a condensed log at most every N repeated messages
         self._logs_folder_ready = False  # avoids an os.makedirs() stat call on every _write()
+        self._fh = None  # persistent log file handle — opened lazily, kept open
+                          # across calls instead of open()/close() every _write(),
+                          # which on a large dataset's per-row DEBUG/ERROR logging
+                          # (unbuffered — see log()) meant tens of thousands of
+                          # redundant open/write/close syscalls dominating wall-clock time.
 
     # ------------------------------------------------------------------
     # Core log method – same signature as Logger.log()
@@ -93,8 +98,10 @@ class RichLogger:
         prefix = self.classifications.get(classification, "[INFO]: ")
         if classification <= self.log_level:
             try:
-                with open(self.logs_folder + self.filename, "a") as fh:
-                    fh.write(f"{prefix}{message}\n")
+                if self._fh is None:
+                    self._fh = open(self.logs_folder + self.filename, "a")
+                self._fh.write(f"{prefix}{message}\n")
+                self._fh.flush()
             except Exception:
                 pass
         if Loud and classification >= self.console_level:

@@ -324,9 +324,18 @@ class ProcessingNode:
             grad_j = max(-gc, min(gc, grad_j))  # Clip
             self.position_gradient[j] += grad_j
 
-    def apply_weight_gradient(self, learning_rate):
-        """Apply accumulated weight gradients"""
+    def apply_weight_gradient(self, learning_rate, frozen_features=None):
+        """Apply accumulated weight gradients.
+
+        frozen_features : optional set of feature names to skip updating —
+                       used by SegmentHandler's feature-pruning to stop
+                       learning on features whose weight has stayed near
+                       zero for several epochs, without discarding their
+                       current (frozen) contribution to the forward pass.
+        """
         for feature in self.weight_gradients:
+            if frozen_features and feature in frozen_features:
+                continue
             current = self.weights.get(feature, 1.0)
             updated = current - learning_rate * self.weight_gradients[feature]
             self.weights[feature] = max(-self.WEIGHT_CLIP, min(self.WEIGHT_CLIP, updated))  # Clamp weights

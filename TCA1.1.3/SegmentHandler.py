@@ -20,6 +20,21 @@ class SegmentHandler:
         self.classification = classification
         self.best_epoch_metrics = None
 
+        # ── Feature-pruning state (JudgeNode-screened, weight-confirmed) ──
+        # candidate_features : names flagged by JudgeNode.compute_feature_relevance()
+        #                      as low cluster-relevance — the ONLY features tracked
+        #                      below (everything else is untouched/always active).
+        # frozen_features    : weight updates skipped, but still computed in the
+        #                      forward pass (reversible, cheap to try).
+        # removed_features   : stripped entirely from the forward pass (the real
+        #                      compute saving; only reached after a feature has
+        #                      stayed frozen-and-low for REMOVE_STREAK_EPOCHS).
+        self.candidate_features      = []
+        self.frozen_features         = set()
+        self.removed_features        = set()
+        self._feature_low_streak     = {}
+        self._feature_frozen_streak  = {}
+
         if self.logger is None:
             raise ValueError("Logger must be provided for SegmentHandler.")
 
@@ -262,6 +277,9 @@ class SegmentHandler:
         Each dict is ready to unpack into HandlerNode.receive_report():
             {'id': segment_id, 'prediction': float, 'reviewer_position': tuple}
         """
+        if self.removed_features:
+            pre_processed = {k: v for k, v in pre_processed.items()
+                             if k not in self.removed_features}
         if self.segmentComponents is None:
             raise ValueError("Segment not initialized. Call initializeSegment() first.")
 
@@ -505,6 +523,9 @@ class SegmentHandler:
         (reviewer, signals_snapshot, prediction) — the snapshot is taken
         *before* review_signals() clears rev.signals so backprop can use it.
         """
+        if self.removed_features:
+            pre_processed = {k: v for k, v in pre_processed.items()
+                             if k not in self.removed_features}
         if self.segmentComponents is None:
             raise ValueError("Segment not initialized. Call initializeSegment() first.")
         sc               = self.segmentComponents
@@ -647,6 +668,80 @@ class SegmentHandler:
     # Single-epoch helpers
     # ------------------------------------------------------------------
 
+    # Weighted-mean |weight| (weighted by each node's cumulative
+    # activation_count, so rarely-visited nodes' noisy weights count less)
+    # below this is a candidate-low reading for a given epoch.
+    FEATURE_FREEZE_WEIGHT_THRESHOLD = 0.05
+    # Consecutive low-reading epochs required before acting. Requiring
+    # persistence (not a single low epoch) guards against freezing/removing
+    # a feature whose weight just hasn't converged yet, especially early in
+    # training when the LR schedule is at its largest.
+    FEATURE_FREEZE_STREAK_EPOCHS = 3
+    FEATURE_REMOVE_STREAK_EPOCHS = 3
+
+    def _update_feature_pruning(self):
+        """
+        Called once per epoch (after that epoch's weight updates). For each
+        JudgeNode-flagged candidate feature, checks the segment's own
+        weighted-mean |weight| for it — this is the real, supervised signal
+        (shaped by backprop against the actual regression loss), used only
+        to CONFIRM or reject what JudgeNode's unsupervised cluster-relevance
+        screen merely flagged as worth watching.
+
+        Two-stage, risk-staged: freeze first (reversible — stops learning on
+        the feature but still computes its forward-pass contribution using
+        its last weight), only escalate to remove (the feature is stripped
+        entirely from the forward pass — the real compute saving, but not
+        reversible mid-run) after it has stayed frozen-and-low for a further
+        FEATURE_REMOVE_STREAK_EPOCHS epochs.
+        """
+        if not self.candidate_features or self.segmentComponents is None:
+            return
+        processing_nodes = self.segmentComponents['processing_nodes']
+        if not processing_nodes:
+            return
+
+        for feature in self.candidate_features:
+            if feature in self.removed_features:
+                continue
+
+            total_weighted = 0.0
+            total_activation = 0
+            for node in processing_nodes:
+                act = node.activation_count
+                if act <= 0:
+                    continue
+                total_weighted   += abs(node.weights.get(feature, 0.0)) * act
+                total_activation += act
+            mean_w = (total_weighted / total_activation) if total_activation > 0 else 0.0
+            is_low = mean_w < self.FEATURE_FREEZE_WEIGHT_THRESHOLD
+
+            if feature not in self.frozen_features:
+                self._feature_low_streak[feature] = (
+                    self._feature_low_streak.get(feature, 0) + 1 if is_low else 0
+                )
+                if self._feature_low_streak[feature] >= self.FEATURE_FREEZE_STREAK_EPOCHS:
+                    self.frozen_features.add(feature)
+                    self.display(
+                        f"Feature '{feature}' FROZEN — mean|weight|={mean_w:.4f} stable "
+                        f"below {self.FEATURE_FREEZE_WEIGHT_THRESHOLD} for "
+                        f"{self.FEATURE_FREEZE_STREAK_EPOCHS} epochs. Still computed each "
+                        f"forward pass, no longer updated.",
+                        classification=4
+                    )
+            else:
+                self._feature_frozen_streak[feature] = (
+                    self._feature_frozen_streak.get(feature, 0) + 1 if is_low else 0
+                )
+                if self._feature_frozen_streak[feature] >= self.FEATURE_REMOVE_STREAK_EPOCHS:
+                    self.removed_features.add(feature)
+                    self.display(
+                        f"Feature '{feature}' REMOVED — frozen and stayed below threshold "
+                        f"for {self.FEATURE_REMOVE_STREAK_EPOCHS} more epochs. Stripped from "
+                        f"the forward pass entirely from now on.",
+                        classification=4
+                    )
+
     def _epoch(self, sample_list, lr_w, lr_p, lr_s, desc, freeze_connections=False,
                reconnect_pct=0.005, position_momentum=0.0):
         """
@@ -705,7 +800,7 @@ class SegmentHandler:
                 # 1. Weight update
                 loss = self._backprop(reviewer_data, target, 'weights')
                 for node in processing_nodes:
-                    node.apply_weight_gradient(lr_w)
+                    node.apply_weight_gradient(lr_w, frozen_features=self.frozen_features)
                     node.weight_gradients = {}
 
                 # 2. Position update — bounds enforced inside apply_position_gradient
@@ -1085,7 +1180,8 @@ class SegmentHandler:
 
     def train(self, dataset, epoch_count=3, preprocessor=None, lr_scale_cfg=None,
               pred_min=None, pred_max=None, grad_clip_cfg=None, delta_clip_cfg=None,
-              visualization_enabled=False, reconnect_pct=0.005, position_momentum=0.0):
+              visualization_enabled=False, reconnect_pct=0.005, position_momentum=0.0,
+              candidate_features=None):
         """
         Train the segment on a dataset.
 
@@ -1139,7 +1235,19 @@ class SegmentHandler:
                        (settings.training.position_momentum). 0.0 (default)
                        reduces to the original raw-gradient step exactly —
                        opt-in only.
+        candidate_features : optional list of feature names (from
+                       JudgeNode.compute_feature_relevance()'s low
+                       cluster-relevance shortlist) to screen for
+                       freeze/removal during this segment's training. None
+                       or [] (default) disables feature pruning entirely —
+                       matches prior behavior exactly.
         """
+        self.candidate_features     = list(candidate_features) if candidate_features else []
+        self.frozen_features        = set()
+        self.removed_features       = set()
+        self._feature_low_streak    = {}
+        self._feature_frozen_streak = {}
+
         import os
         import datetime as _dt
         import pandas as pd
@@ -1304,6 +1412,9 @@ class SegmentHandler:
                     f"{tag} | Loss: {loss:.6f}  delta: {delta:.2e}",
                     classification=4
                 )
+
+                # ── Feature-pruning check (candidate_features only; no-op if empty) ──
+                self._update_feature_pruning()
 
                 # ── Epoch-end accuracy check ──────────────────────────
                 reports = self.segmentInfer(eval_pre.copy(), loud=False)

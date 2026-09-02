@@ -116,6 +116,66 @@ class JudgeNode:
             'points':     points,
             'segment_id': None,
         }
+
+    def compute_feature_relevance(self) -> dict:
+        """
+        Between-cluster / within-cluster variance ratio per feature (an
+        ANOVA-style F-ratio), computed from the already-trained cluster
+        centroids and member points.
+
+        A LOW ratio means the feature barely differs across cluster
+        centroids — JudgeNode's clustering doesn't rely on it to
+        distinguish segments. This is a cheap, unsupervised PRE-FILTER
+        only (target-excluded, same as the clustering itself): it flags
+        candidate columns worth watching more closely, via each segment's
+        actual learned weight magnitude during training. It must never be
+        used alone to decide freeze/removal — a feature can be irrelevant
+        to input-space clustering while still being highly predictive of
+        the regression target within every cluster.
+
+        Returns
+        -------
+        dict {feature_name: ratio}, sorted ascending (least relevant to
+        clustering first). Empty if fewer than 2 clusters or no trained
+        feature names are available yet.
+        """
+        clusters = self.segment_weights.get('clusters', [])
+        if len(clusters) < 2 or not self.features:
+            return {}
+
+        n_dims = len(clusters[0]['centroid'])
+        active_indices = [i for i in range(n_dims) if i not in self.ignored_features]
+
+        total_points = sum(len(c['points']) for c in clusters)
+        if total_points == 0:
+            return {}
+
+        # Grand mean per dimension, weighted by cluster size.
+        grand_mean = [0.0] * n_dims
+        for c in clusters:
+            w = len(c['points']) / total_points
+            for i in active_indices:
+                grand_mean[i] += c['centroid'][i] * w
+
+        between_var = [0.0] * n_dims
+        within_var  = [0.0] * n_dims
+        for c in clusters:
+            n_c = len(c['points'])
+            if n_c == 0:
+                continue
+            for i in active_indices:
+                between_var[i] += n_c * (c['centroid'][i] - grand_mean[i]) ** 2
+                within_var[i]  += sum((p[i] - c['centroid'][i]) ** 2 for p in c['points'])
+
+        k = len(clusters)
+        relevance = {}
+        for i in active_indices:
+            name = self.features[i] if i < len(self.features) else f"col_{i}"
+            b = between_var[i] / max(k - 1, 1)
+            w = within_var[i] / max(total_points - k, 1)
+            relevance[name] = b / max(w, 1e-9)
+
+        return dict(sorted(relevance.items(), key=lambda kv: kv[1]))
     
     def calculate_input_segment_relevance(self, input_vectorized, Loud: bool = False) -> dict:
         relevance_scores: dict[str, list] = {
