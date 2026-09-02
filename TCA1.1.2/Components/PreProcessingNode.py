@@ -49,7 +49,14 @@ class PreProcesingNode:
         for col in self.removable_columns:
             if col in data:
                 del data[col]
-        self.display(f"Dropped removable columns: {self.removable_columns}", 1)
+        # removable_columns is fixed per instance — log it once, not on every
+        # row. This used to fire unconditionally per-row (classification<=2
+        # log calls write to disk immediately, unbuffered — see RichConsole
+        # .log()), which on a ~20k-row dataset meant ~20k redundant identical
+        # log lines and file writes, dominating preprocessing wall-clock time.
+        if not getattr(self, "_logged_removable_columns", False):
+            self.display(f"Dropped removable columns: {self.removable_columns}", 1)
+            self._logged_removable_columns = True
         return data
     
     def vectorize_input(self, data):
@@ -147,7 +154,12 @@ class PreProcesingNode:
         for key in keys_to_delete:
             # remove key with missing value
             del data[key]
-        self.display(f"Removed keys with missing values: {keys_to_delete}", 2)
+        # Only log when something was actually removed — logging an empty
+        # list every single row (classification<=2 writes to disk
+        # immediately, unbuffered) was pure noise that dominated
+        # preprocessing wall-clock time on larger datasets.
+        if keys_to_delete:
+            self.display(f"Removed keys with missing values: {keys_to_delete}", 2)
         return data
     
     def get_random_sample(self, n =1):
