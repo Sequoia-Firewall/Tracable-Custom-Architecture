@@ -235,9 +235,10 @@ def run_train(settings: Settings, logger) -> None:
 
     # ── Pre-train inference ───────────────────────────────────────────────
     console.print(Rule("[bold yellow]Pre-Training Inference[/bold yellow]"))
-    pre_pred = system.runInfer(sample_raw.copy(), loud=False,
-                               aggregation_mode=m["aggregation_mode"],
-                               selection_percentage=m["selection_percentage"])
+    pre_result = system.runInfer(sample_raw.copy(), loud=False,
+                                 aggregation_mode=m["aggregation_mode"],
+                                 selection_percentage=m["selection_percentage"])
+    pre_pred = pre_result['score'] if pre_result is not None else None
 
     # ── Train ─────────────────────────────────────────────────────────────
     console.print(Rule("[bold green]Training[/bold green]"))
@@ -273,9 +274,10 @@ def run_train(settings: Settings, logger) -> None:
 
     # ── Post-train inference ──────────────────────────────────────────────
     console.print(Rule("[bold yellow]Post-Training Inference[/bold yellow]"))
-    post_pred = system.runInfer(sample_raw.copy(), loud=True,
-                                aggregation_mode=m["aggregation_mode"],
-                                selection_percentage=m["selection_percentage"])
+    post_result = system.runInfer(sample_raw.copy(), loud=True,
+                                  aggregation_mode=m["aggregation_mode"],
+                                  selection_percentage=m["selection_percentage"])
+    post_pred = post_result['score'] if post_result is not None else None
 
     pre_err  = _err_pct(pre_pred,  actual)
     post_err = _err_pct(post_pred, actual)
@@ -286,15 +288,24 @@ def run_train(settings: Settings, logger) -> None:
     infer_table.add_column("Prediction", style="yellow",     justify="right")
     infer_table.add_column("Actual",     style="bold white", justify="right")
     infer_table.add_column("Error %",    style="red",        justify="right")
+    infer_table.add_column("Confidence", style="cyan",       justify="right")
+    infer_table.add_column("Segment",    style="magenta",    justify="right")
+    infer_table.add_column("Archetype",  style="green",      justify="right")
     infer_table.add_row("Pre-Training",  _fmt(pre_pred),  _fmt(actual),
-                        f"{pre_err:.2f}%"  if pre_err  is not None else "—")
+                        f"{pre_err:.2f}%"  if pre_err  is not None else "—",
+                        _fmt(pre_result.get('confidence')) if pre_result else "—",
+                        str(pre_result.get('segment_id')) if pre_result else "—",
+                        str(pre_result.get('archetype'))  if pre_result else "—")
     infer_table.add_row("Post-Training", _fmt(post_pred), _fmt(actual),
-                        f"{post_err:.2f}%" if post_err is not None else "—")
+                        f"{post_err:.2f}%" if post_err is not None else "—",
+                        _fmt(post_result.get('confidence')) if post_result else "—",
+                        str(post_result.get('segment_id')) if post_result else "—",
+                        str(post_result.get('archetype'))  if post_result else "—")
     if pre_err is not None and post_err is not None:
         imp  = pre_err - post_err
         sign = "[green]▼[/green]" if imp > 0 else "[red]▲[/red]"
         infer_table.add_section()
-        infer_table.add_row("Improvement", "—", "—", f"{sign} {abs(imp):.2f}%")
+        infer_table.add_row("Improvement", "—", "—", f"{sign} {abs(imp):.2f}%", "—", "—", "—")
     console.print(infer_table)
 
     # ── Test evaluation (optional) ────────────────────────────────────────
@@ -383,13 +394,17 @@ def run_infer(settings: Settings, logger) -> None:
     console.print(Rule("[bold cyan]Loading Segments[/bold cyan]"))
     system = SystemHandler.from_settings(settings, logger)
     system.load_segments(nexseg_dir)
-    logger.log("JudgeNode not restored — all segments weighted equally.", 3, True)
+    # load_segments() itself now logs whether JudgeNode's routing state was
+    # actually restored or fell back to equal-relevance — see SystemHandler.
+    # (previously this was a hardcoded "not restored" message regardless of
+    # what actually happened.)
 
     console.print(Rule("[bold yellow]Inference[/bold yellow]"))
-    pred = system.runInfer(sample_raw.copy(),
-                           loud=inf.get("loud", True),
-                           aggregation_mode=m["aggregation_mode"],
-                           selection_percentage=m["selection_percentage"])
+    result = system.runInfer(sample_raw.copy(),
+                             loud=inf.get("loud", True),
+                             aggregation_mode=m["aggregation_mode"],
+                             selection_percentage=m["selection_percentage"])
+    pred = result['score'] if result is not None else None
 
     err = _err_pct(pred, actual)
 
@@ -401,9 +416,14 @@ def run_infer(settings: Settings, logger) -> None:
     result_table.add_row("Actual",      _fmt(actual))
     result_table.add_row("Abs Error",   _fmt(abs(pred - actual) if pred is not None and actual is not None else None))
     result_table.add_row("Error %",     f"{err:.2f}%" if err is not None else "—")
+    result_table.add_row("Confidence",  _fmt(result.get('confidence')) if result else "—")
+    result_table.add_row("Segment ID",  str(result.get('segment_id')) if result else "—")
+    result_table.add_row("Archetype",   str(result.get('archetype'))  if result else "—")
     result_table.add_row("Agg Mode",    m["aggregation_mode"])
     result_table.add_row("Segs Used",   str(system.getNumberSegmentsUsed()))
     console.print(result_table)
+    if result:
+        console.print(f"[dim]Breakdown: {result['breakdown']}[/dim]")
 
     # ── Offer to run another sample ───────────────────────────────────────
     while _confirm(console, "\nEvaluate another sample?", default=False):
@@ -413,13 +433,17 @@ def run_infer(settings: Settings, logger) -> None:
             break
         sample_raw = dataset.iloc[idx].to_dict()
         actual     = sample_raw.get(d["target_column"])
-        pred = system.runInfer(sample_raw.copy(), loud=False,
-                               aggregation_mode=m["aggregation_mode"],
-                               selection_percentage=m["selection_percentage"])
+        result = system.runInfer(sample_raw.copy(), loud=False,
+                                 aggregation_mode=m["aggregation_mode"],
+                                 selection_percentage=m["selection_percentage"])
+        pred = result['score'] if result is not None else None
         err  = _err_pct(pred, actual)
         console.print(f"  sample[{idx}]  pred=[bold yellow]{_fmt(pred)}[/bold yellow]  "
                       f"actual=[bold]{_fmt(actual)}[/bold]  "
-                      f"err=[red]{f'{err:.2f}%' if err is not None else '—'}[/red]")
+                      f"err=[red]{f'{err:.2f}%' if err is not None else '—'}[/red]  "
+                      f"conf=[cyan]{_fmt(result.get('confidence')) if result else '—'}[/cyan]  "
+                      f"seg=[magenta]{result.get('segment_id') if result else '—'}[/magenta]  "
+                      f"archetype=[green]{result.get('archetype') if result else '—'}[/green]")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -557,11 +581,11 @@ def _evaluate_system(system: SystemHandler, test_ds, target_col: str, m: dict, l
             if a is None:
                 prog.update(task, advance=1)
                 continue
-            p = system.runInfer(row_dict, loud=False,
-                                aggregation_mode=m["aggregation_mode"],
-                                selection_percentage=m["selection_percentage"])
-            if p is not None:
-                preds.append(float(p))
+            result = system.runInfer(row_dict, loud=False,
+                                     aggregation_mode=m["aggregation_mode"],
+                                     selection_percentage=m["selection_percentage"])
+            if result is not None:
+                preds.append(float(result['score']))
                 actuals.append(float(a))
             prog.update(task, advance=1)
 

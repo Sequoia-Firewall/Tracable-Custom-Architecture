@@ -173,14 +173,14 @@ class SystemHandlerWrapper:
             if target_val is None or target_val == 0:
                 continue
             try:
-                pred = system.runInfer(
+                result = system.runInfer(
                     sample.copy(),
                     loud=False,
                     aggregation_mode=self.aggregation_mode,
                     selection_percentage=self.selection_percentage,
                 )
-                if pred is not None:
-                    predictions.append(float(pred))
+                if result is not None:
+                    predictions.append(float(result['score']))
                     actuals.append(float(target_val))
             except Exception:
                 failed += 1

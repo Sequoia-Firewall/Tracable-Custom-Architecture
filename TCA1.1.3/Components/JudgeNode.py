@@ -176,7 +176,123 @@ class JudgeNode:
             relevance[name] = b / max(w, 1e-9)
 
         return dict(sorted(relevance.items(), key=lambda kv: kv[1]))
-    
+
+    # ------------------------------------------------------------------
+    # Persistence — routing state only (hot-swap support)
+    # ------------------------------------------------------------------
+
+    def save_state(self, filename: str = "judge_node.judgestate") -> str:
+        """
+        Persist routing-relevant state: cluster centroids + their assigned
+        segment_id, the segment id list, and the feature name/ignore-index
+        metadata needed to align a future input vector's dimensions with
+        these centroids.
+
+        Deliberately EXCLUDES each cluster's training-time 'points' (every
+        member training row) — calculate_input_segment_relevance() and
+        find_nearest_cluster() only ever read 'centroid' and 'segment_id' at
+        inference time; 'points' is only used during JudgeNode.train()'s
+        cluster-count search/scoring and can be a large fraction of the
+        training dataset's own size, so keeping it out of the saved file is
+        a deliberate size tradeoff, not an oversight.
+        """
+        import json
+        state = {
+            'features':         self.features,
+            'ignored_features': self.ignored_features,
+            'target':           self.target,
+            'segment_weights': {
+                'segment': self.segment_weights.get('segment', []),
+                'clusters': [
+                    {'centroid': c['centroid'], 'segment_id': c.get('segment_id')}
+                    for c in self.segment_weights.get('clusters', [])
+                ],
+            },
+        }
+        with open(filename, 'w') as f:
+            json.dump(state, f, indent=2)
+        return filename
+
+    def load_state(self, filename: str = "judge_node.judgestate") -> bool:
+        """
+        Restore routing state saved by save_state(). Returns False (leaving
+        this JudgeNode's current state untouched) if the file doesn't exist
+        — the caller's existing "no clusters -> equal relevance" fallback
+        then applies exactly as before this method existed.
+        """
+        import json, os
+        if not os.path.exists(filename):
+            return False
+        with open(filename) as f:
+            state = json.load(f)
+        self.features         = state.get('features', [])
+        self.ignored_features = state.get('ignored_features', [])
+        self.target           = state.get('target', self.target)
+        sw = state.get('segment_weights', {})
+        self.segment_weights = {
+            'segment': sw.get('segment', []),
+            'clusters': [
+                {'centroid': c['centroid'], 'points': [], 'segment_id': c.get('segment_id')}
+                for c in sw.get('clusters', [])
+            ],
+        }
+        return True
+
+    def find_nearest_cluster(self, input_vectorized) -> dict | None:
+        """
+        The single cluster (an "archetype") whose centroid is closest to
+        this input, regardless of which segment it's assigned to — a
+        human-readable "what kind of row is this" label, distinct from
+        segment_id (which is about compute routing, not semantic grouping).
+        Returns None if no clusters are available (untrained / state not
+        restored).
+        """
+        clusters = self.segment_weights.get('clusters', [])
+        if not clusters:
+            return None
+        if self.features and isinstance(input_vectorized, dict):
+            input_filtered = [
+                input_vectorized.get(f, 0.0)
+                for f in self.features
+                if f not in self.ignored_features
+            ]
+        else:
+            input_filtered = self.filter_features(input_vectorized)
+
+        best_idx, best_dist = None, float('inf')
+        for idx, cluster in enumerate(clusters):
+            d = self.euclidean_distance(input_filtered, self._filtered_centroid(cluster['centroid']))
+            if d < best_dist:
+                best_dist, best_idx = d, idx
+        if best_idx is None:
+            return None
+        return {
+            'archetype_id': best_idx,
+            'segment_id':   clusters[best_idx].get('segment_id'),
+            'distance':     best_dist,
+        }
+
+    def _filtered_centroid(self, centroid: list) -> list:
+        """
+        Filter a stored (full-length) centroid to match input_filtered's
+        dimensionality/ordering when self.ignored_features is set.
+
+        Centroids are plain lists with no keys, so — unlike the dict-mode
+        input filtering a few lines above/in find_nearest_cluster — they must
+        be filtered by POSITION using self.features (the same column-order
+        list they were built from), not by directly checking membership.
+        Fixes a latent bug: previously centroid was never filtered at all, so
+        whenever ignored_features was non-empty, euclidean_distance's zip()
+        would silently pair the shortened input against the WRONG, unrelated
+        leading dimensions of the still-full-length centroid. Never surfaced
+        before because ignored_features was always empty in every existing
+        caller — nothing had ever set it to a non-empty value until
+        tests/version-hotswap-test's forced-category routing did.
+        """
+        if not self.features or len(centroid) != len(self.features):
+            return centroid
+        return [c for i, c in enumerate(centroid) if self.features[i] not in self.ignored_features]
+
     def calculate_input_segment_relevance(self, input_vectorized, Loud: bool = False) -> dict:
         relevance_scores: dict[str, list] = {
             'clusters': [],
@@ -202,7 +318,7 @@ class JudgeNode:
                 relevance_scores['scores'].append(1.0)
             return relevance_scores
         for cluster in self.segment_weights['clusters']:
-            centroid = cluster['centroid']
+            centroid = self._filtered_centroid(cluster['centroid'])
             distance = self.euclidean_distance(input_filtered, centroid)
             relevance = 1 / (1 + distance)
             relevance_scores['clusters'].append(cluster)

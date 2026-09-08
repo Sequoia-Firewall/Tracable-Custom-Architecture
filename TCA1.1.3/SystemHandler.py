@@ -61,8 +61,11 @@ class SystemHandler:
     def load_segments(self, nexseg_dir: str = ".") -> None:
         """Restore all segments from .nexseg files saved by a previous training run.
 
-        JudgeNode state is not persisted in .nexseg files; inference will fall back
-        to weighting all segments equally, which is the existing graceful fallback.
+        Also restores JudgeNode's routing state from the judge_node.judgestate
+        file saved alongside them (see JudgeNode.save_state()). If that file
+        isn't present — e.g. .nexseg files produced before this fix existed —
+        this falls back to the original behavior: JudgeNode stays untrained
+        and runInfer() weights every segment equally.
         """
         self.segments = []
         seg_count = 2 ** self.dimensions
@@ -81,6 +84,51 @@ class SystemHandler:
             )
             self.segments.append(seg)
         self.display(f"Loaded {len(self.segments)} segments from '{nexseg_dir}'.")
+
+        judge_state_path = os.path.join(nexseg_dir, "judge_node.judgestate")
+        if self.JudgeNode.load_state(judge_state_path):
+            self.display(f"JudgeNode routing state restored from '{judge_state_path}'.")
+        else:
+            self.display(
+                f"No JudgeNode routing state found at '{judge_state_path}' — "
+                f"falling back to equal relevance for every segment.",
+                classification=3
+            )
+
+    def hot_swap_segment(self, segment_id: int, nexseg_dir: str = ".") -> None:
+        """
+        Replace ONE segment in-place with a freshly retrained/saved .nexseg,
+        leaving JudgeNode's routing state and every other segment untouched.
+
+        Safe as long as JudgeNode's own state has already been restored (see
+        load_segments()/JudgeNode.load_state()) — JudgeNode routes purely by
+        segment_id, never by a segment's internal weights/positions, so a
+        swapped-in segment is immediately routable as long as it keeps the
+        segment_id it's replacing. This does NOT re-validate that the new
+        segment was trained on data compatible with what JudgeNode already
+        clustered for this segment_id — that's on the caller (e.g. retrain
+        only on rows JudgeNode already assigned to this segment_id).
+        """
+        path = os.path.join(nexseg_dir, f"segment_{segment_id}.nexseg")
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Segment file not found: {path}")
+        new_segment = SegmentHandler.load_nexseg(
+            path,
+            logger=self.logger,
+            connection_percentage=self.connection_percentage,
+            classification=self.classification,
+        )
+        if new_segment.segment_id != segment_id:
+            raise ValueError(
+                f"Loaded segment's segment_id ({new_segment.segment_id}) does not "
+                f"match requested segment_id ({segment_id}) — refusing to hot-swap."
+            )
+        for i, seg in enumerate(self.segments):
+            if seg.segment_id == segment_id:
+                self.segments[i] = new_segment
+                self.display(f"Hot-swapped segment {segment_id} from '{path}'.")
+                return
+        raise ValueError(f"No existing segment with segment_id={segment_id} to swap.")
 
     # ── Internals ────────────────────────────────────────────────────────
 
@@ -149,6 +197,13 @@ class SystemHandler:
         self.JudgeNode.train(judge_input, judge_iterations, segments=self.segments,
                              min_clusters=judge_min_clusters, max_clusters=judge_max_clusters)
         self.display("JudgeNode training complete. Proceeding to segment training...", Loud=loud)
+
+        # Persist routing state alongside the per-segment .nexseg files so a
+        # later load_segments() can restore real cluster-based routing
+        # instead of falling back to equal-relevance for every segment —
+        # see JudgeNode.save_state()/load_state().
+        judge_state_path = self.JudgeNode.save_state()
+        self.display(f"JudgeNode routing state saved -> {judge_state_path}", Loud=loud)
 
         # Step 1b: Screen for low cluster-relevance features. Cheap, unsupervised
         # pre-filter only — each segment independently confirms (or rejects) these
@@ -223,6 +278,26 @@ class SystemHandler:
                           reconnect_pct=reconnect_pct, position_momentum=position_momentum)
 
     def runInfer(self, input, loud = True, aggregation_mode: str = "bma", selection_percentage: float = .5):
+        """
+        Run a single inference. Returns a dict:
+            {
+                'score':       float — the aggregated prediction (was the
+                               entire return value before this fix),
+                'confidence':  float — cross-segment agreement, see
+                               HandlerNode.process_reports(),
+                'segment_id':  int | None — the segment that most shaped the
+                               final score (highest final aggregation weight),
+                'archetype':   str | None — "cluster_<id>", the JudgeNode
+                               cluster whose centroid is nearest this input
+                               (see JudgeNode.find_nearest_cluster) — a
+                               semantic "what kind of row is this" label,
+                               distinct from segment_id (compute routing),
+                'breakdown':   dict — full per-segment mean/weight/relevance
+                               detail; same object as self.HandlerNode.last_breakdown.
+            }
+        Returns None if no segment produced a usable prediction (matches the
+        prior bare-float behavior's None case).
+        """
         if self.JudgeNode is None or self.HandlerNode is None:
             raise ValueError("JudgeNode or HandlerNode not assigned")
 
@@ -255,7 +330,20 @@ class SystemHandler:
                 self.HandlerNode.receive_report(segment_id, relevance, report['prediction'],
                                                 confidence=report.get('confidence', 1.0))
 
-        return self.HandlerNode.process_reports(loud, aggregation_mode=aggregation_mode)
+        breakdown = self.HandlerNode.process_reports(loud, aggregation_mode=aggregation_mode)
+        if breakdown is None:
+            return None
+
+        archetype_match = self.JudgeNode.find_nearest_cluster(judge_input)
+        archetype = f"cluster_{archetype_match['archetype_id']}" if archetype_match else None
+
+        return {
+            'score':      breakdown['score'],
+            'confidence': breakdown['confidence'],
+            'segment_id': breakdown['dominant_segment_id'],
+            'archetype':  archetype,
+            'breakdown':  breakdown,
+        }
 
     def getNumberSegmentsUsed(self):
         return self.NumberSegsUsed if hasattr(self, 'NumberSegsUsed') else None

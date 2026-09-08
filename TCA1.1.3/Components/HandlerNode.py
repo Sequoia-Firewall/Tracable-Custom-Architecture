@@ -23,7 +23,7 @@ class HandlerNode:
         self.reports['predictions'].append(prediction)
         self.reports['confidence'].append(confidence)
 
-    def process_reports(self, loud: bool, aggregation_mode: str = "bma") -> float | None:
+    def process_reports(self, loud: bool, aggregation_mode: str = "bma") -> dict | None:
         if not self.reports['predictions']:
             self.display("No predictions to process.", Loud=loud)
             return None
@@ -41,6 +41,7 @@ class HandlerNode:
             segments[seg_id]['predictions'].append(prediction)
             segments[seg_id]['confidences'].append(confidence)
 
+        seg_ids: list[int] = []
         means: list[float] = []
         weights: list[float] = []
 
@@ -55,6 +56,7 @@ class HandlerNode:
                 mean_s = sum(p * c for p, c in zip(preds, confs)) / conf_total
             else:
                 mean_s = sum(preds) / len(preds)
+            seg_ids.append(seg_id)
             means.append(mean_s)
 
             if aggregation_mode == "bma":
@@ -85,16 +87,57 @@ class HandlerNode:
         if total_weight == 0.0:  # all relevances zero — fall back to equal weights
             weights = [1.0] * len(weights)
             total_weight = float(len(weights))
-        final_prediction = sum(m * w for m, w in zip(means, weights)) / total_weight
+        norm_weights = [w / total_weight for w in weights]
+        final_prediction = sum(m * w for m, w in zip(means, norm_weights))
 
-        self.display(f"[{aggregation_mode}] Final aggregated prediction: {final_prediction:.4f}", Loud=loud)
+        # Confidence: how much the contributing segments agree, not how
+        # "correct" the answer is — inverse of the weighted variance of
+        # segment means around the final prediction, same 1/(1+x) shape
+        # already used for relevance elsewhere in this codebase. A single
+        # contributing segment has nothing to disagree with, so it reads as
+        # maximally confident (1.0) — that's a real limit of this measure,
+        # not a bug: it reflects cross-segment agreement specifically, not
+        # overall prediction quality.
+        weighted_var = sum(w * (m - final_prediction) ** 2 for m, w in zip(means, norm_weights))
+        confidence = 1.0 / (1.0 + weighted_var)
+
+        # Dominant segment: whichever contributing segment ended up with the
+        # highest final aggregation weight — the one that most shaped the
+        # final prediction, not necessarily the one JudgeNode ranked highest
+        # by relevance before any of this reviewer/variance math ran.
+        dominant_idx = max(range(len(seg_ids)), key=lambda i: norm_weights[i]) if seg_ids else None
+        dominant_segment_id = seg_ids[dominant_idx] if dominant_idx is not None else None
+
+        self.display(
+            f"[{aggregation_mode}] Final aggregated prediction: {final_prediction:.4f}  "
+            f"confidence={confidence:.4f}  dominant_segment={dominant_segment_id}",
+            Loud=loud
+        )
+
+        breakdown = {
+            'score':               final_prediction,
+            'confidence':          confidence,
+            'dominant_segment_id': dominant_segment_id,
+            'aggregation_mode':    aggregation_mode,
+            'segments': {
+                seg_id: {
+                    'mean':        means[i],
+                    'weight':      norm_weights[i],
+                    'relevance':   segments[seg_id]['relevance'],
+                    'n_reviewers': len(segments[seg_id]['predictions']),
+                }
+                for i, seg_id in enumerate(seg_ids)
+            },
+        }
+        self.last_breakdown = breakdown
+
         self.reports = {
             'segment': [],
             'segment_relevance': [],
             'predictions': [],
             'confidence': []
         }
-        return final_prediction
+        return breakdown
 
         
 
