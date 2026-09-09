@@ -1,0 +1,60 @@
+{
+  "config": {
+    "n_rows_total": 20000,
+    "n_train": 16000,
+    "n_test": 4000,
+    "max_x": 20,
+    "dimensions": 2,
+    "training_mode": "partitioned",
+    "epoch_count": 20,
+    "judge_iterations": 20,
+    "lr_mode": "auto",
+    "grad_clip_mode": "auto",
+    "delta_clip_mode": "auto",
+    "parallel_enabled": true,
+    "max_workers": null
+  },
+  "train_wall_time_sec": 4241.2,
+  "eval_wall_time_sec": 138.5,
+  "worker_results": [
+    {
+      "segment_id": 0,
+      "nexseg_path": "segment_0.nexseg",
+      "train_time_sec": 3154.53
+    },
+    {
+      "segment_id": 1,
+      "nexseg_path": "segment_1.nexseg",
+      "train_time_sec": 4066.94
+    },
+    {
+      "segment_id": 2,
+      "nexseg_path": "segment_2.nexseg",
+      "train_time_sec": 3593.74
+    },
+    {
+      "segment_id": 3,
+      "nexseg_path": "segment_3.nexseg",
+      "train_time_sec": 3160.02
+    }
+  ],
+  "test_metrics": {
+    "mae": 15.805567172893674,
+    "rmse": 19.181923072901327,
+    "r2": -0.004268064013699835,
+    "mape_pct": 33.036793830165756,
+    "acc_5_pct": 12.425,
+    "acc_10_pct": 24.7,
+    "acc_20_pct": 47.65,
+    "direction_acc_pct": 53.05,
+    "precision": 0.5170122275385434,
+    "recall": 0.9695912263210369,
+    "f1": 0.6744105409153952,
+    "tp": 1945,
+    "fp": 1817,
+    "fn": 61,
+    "tn": 177,
+    "n": 4000
+  },
+  "total_elapsed_sec": 4379.9
+}
