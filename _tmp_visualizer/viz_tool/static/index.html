@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TCA Viewer</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header id="statusbar">
+    <div class="brand">TCA Viewer</div>
+    <div id="status-info" class="status-info">loading…</div>
+    <button id="refresh-btn" title="Manual refresh — this tool never polls on its own">⟳ Refresh</button>
+  </header>
+
+  <div id="viz-disabled-banner" class="banner hidden">
+    Visualization disabled: this run has more than <span id="max-dims"></span> dimensions.
+    Geometric rendering isn't meaningful past that — use the Logs and Confidence tabs instead.
+  </div>
+
+  <nav id="tabs">
+    <button class="tab-btn active" data-tab="graph">Graph</button>
+    <button class="tab-btn" data-tab="confidence">Confidence</button>
+    <button class="tab-btn" data-tab="paths">Signal Paths</button>
+    <button class="tab-btn" data-tab="curves">Training Curves</button>
+    <button class="tab-btn" data-tab="logs">Logs</button>
+  </nav>
+
+  <main>
+    <section id="tab-graph" class="tab-panel active">
+      <div class="controls">
+        <label>Segment:
+          <select id="graph-segment-select"></select>
+        </label>
+        <label class="checkbox"><input type="checkbox" id="graph-show-connections" checked> connections</label>
+        <label class="checkbox"><input type="checkbox" id="graph-show-reviewers" checked> reviewers</label>
+        <span id="graph-node-count" class="hint"></span>
+      </div>
+      <canvas id="graph-canvas" width="900" height="640"></canvas>
+      <div id="graph-tooltip" class="tooltip hidden"></div>
+    </section>
+
+    <section id="tab-confidence" class="tab-panel">
+      <div class="controls">
+        <span class="hint">Per-segment relevance (from JudgeNode's saved routing state) and, if tracing was
+        enabled during inference, observed confidence/weight from the last recorded calls.</span>
+      </div>
+      <div id="confidence-content"></div>
+    </section>
+
+    <section id="tab-paths" class="tab-panel">
+      <div class="controls">
+        <label>Inference record:
+          <select id="trace-record-select"></select>
+        </label>
+        <label>Segment:
+          <select id="trace-segment-select"></select>
+        </label>
+        <span id="trace-hint" class="hint">Requires trace.jsonl — see settings.infer.trace_enabled.</span>
+      </div>
+      <canvas id="paths-canvas" width="900" height="640"></canvas>
+      <div id="paths-detail"></div>
+    </section>
+
+    <section id="tab-curves" class="tab-panel">
+      <canvas id="curves-canvas" width="900" height="420"></canvas>
+      <div id="curves-hint" class="hint"></div>
+    </section>
+
+    <section id="tab-logs" class="tab-panel">
+      <div class="controls">
+        <label>File:
+          <select id="log-file-select"></select>
+        </label>
+        <label>Min level:
+          <select id="log-level-select">
+            <option value="">all</option>
+            <option value="1">DEBUG+</option>
+            <option value="2">ERROR+</option>
+            <option value="3">WARNING+</option>
+            <option value="4">INFO only</option>
+          </select>
+        </label>
+        <label>Lines:
+          <select id="log-limit-select">
+            <option value="200">200</option>
+            <option value="500" selected>500</option>
+            <option value="2000">2000</option>
+          </select>
+        </label>
+      </div>
+      <div id="log-content"></div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
