@@ -15,7 +15,7 @@ settings.override("model.max_x", 6)
 settings.override("model.dimensions", 2)
 settings.override("training.epoch_count", 4)
 settings.override("training.judge_iterations", 5)
-settings.override("training.judge_min_clusters", 2)
+settings.override("training.judge_min_clusters", 4)
 settings.override("training.judge_max_clusters", 4)
 
 logger = RC.RichLogger(filename=f"smoke_{int(time.time())}.log", log_level=4, console_level=1)

@@ -62,6 +62,7 @@ function refreshActiveTab() {
     case "paths": loadPathsTab(); break;
     case "curves": loadCurvesTab(); break;
     case "logs": loadLogsTab(); break;
+    case "query": loadQueryTab(); break;
   }
 }
 
@@ -303,13 +304,17 @@ async function loadPathsTab() {
   await drawForSelection();
 }
 
-async function drawPathsForSegment(rec) {
-  const segSel = document.getElementById("trace-segment-select");
+// ids lets the Query tab reuse this exact rendering against its own
+// canvas/select/detail elements instead of duplicating the drawing logic.
+const PATHS_TAB_IDS = { segSelectId: "trace-segment-select", canvasId: "paths-canvas", detailId: "paths-detail" };
+
+async function drawPathsForSegment(rec, ids = PATHS_TAB_IDS) {
+  const segSel = document.getElementById(ids.segSelectId);
   const segId = segSel.value;
   if (segId === undefined || segId === "") return;
   const seg = await fetchJSON(`/api/segment/${segId}`);
   const maxX = seg.max_x || 10;
-  const canvas = document.getElementById("paths-canvas");
+  const canvas = document.getElementById(ids.canvasId);
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const posOf = p => project(p, maxX, canvas.width, canvas.height);
@@ -332,7 +337,7 @@ async function drawPathsForSegment(rec) {
   // Highlighted signal paths for this segment
   const paths = (rec.paths && rec.paths[segId]) || [];
   const colors = ["#ff922b", "#51cf66", "#4dabf7", "#e64980", "#fab005"];
-  const detail = document.getElementById("paths-detail");
+  const detail = document.getElementById(ids.detailId);
   let detailHtml = `<table class="simple"><tr><th>#</th><th>hops</th><th>final prediction</th><th>variance</th></tr>`;
   paths.forEach((p, i) => {
     const color = colors[i % colors.length];
@@ -437,6 +442,127 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("log-file-select").addEventListener("change", renderLogs);
   document.getElementById("log-level-select").addEventListener("change", renderLogs);
   document.getElementById("log-limit-select").addEventListener("change", renderLogs);
+});
+
+// ── Query (live inference) ────────────────────────────────────────────────
+
+let querySchema = null; // cached — schema doesn't change without retraining
+
+async function loadQueryTab() {
+  const hint = document.getElementById("query-schema-hint");
+  if (!querySchema) {
+    querySchema = await fetchJSON("/api/schema");
+  }
+  if (querySchema.error || !querySchema.columns || querySchema.columns.length === 0) {
+    hint.textContent = querySchema.error || "No input columns found.";
+    document.getElementById("query-form").innerHTML = "";
+    return;
+  }
+  hint.textContent = `${querySchema.columns.length} input field(s), derived from the dataset CSV ` +
+    `(target "${querySchema.target_column}" excluded).`;
+  buildQueryForm(querySchema.columns);
+}
+
+function buildQueryForm(columns) {
+  const form = document.getElementById("query-form");
+  form.innerHTML = columns.map(col => {
+    const id = `query-field-${col.name}`;
+    if (col.type === "numeric") {
+      const mid = (Number(col.min) + Number(col.max)) / 2;
+      const hint = (col.min !== null && col.max !== null) ? ` (${col.min}–${col.max})` : "";
+      return `<div class="controls"><label style="width:14em;display:inline-block">${col.name}${hint}
+        <input type="number" id="${id}" data-type="numeric" data-name="${col.name}"
+               value="${Number.isFinite(mid) ? mid.toFixed(2) : ""}" step="any"></label></div>`;
+    }
+    if (col.type === "categorical") {
+      return `<div class="controls"><label style="width:14em;display:inline-block">${col.name}
+        <select id="${id}" data-type="categorical" data-name="${col.name}">
+          ${col.options.map(o => `<option value="${escapeHtml(String(o))}">${escapeHtml(String(o))}</option>`).join("")}
+        </select></label></div>`;
+    }
+    return `<div class="controls"><label style="width:14em;display:inline-block">${col.name}
+      <input type="text" id="${id}" data-type="text" data-name="${col.name}"></label></div>`;
+  }).join("");
+}
+
+async function runQuery() {
+  const errBox = document.getElementById("query-error");
+  errBox.classList.add("hidden");
+  const inputs = document.querySelectorAll("#query-form [data-name]");
+  const feature_values = {};
+  for (const el of inputs) {
+    const name = el.dataset.name;
+    if (el.dataset.type === "numeric") {
+      const v = parseFloat(el.value);
+      if (Number.isNaN(v)) { errBox.textContent = `"${name}" needs a number.`; errBox.classList.remove("hidden"); return; }
+      feature_values[name] = v;
+    } else {
+      feature_values[name] = el.value;
+    }
+  }
+  const aggregation_mode = document.getElementById("query-aggregation-mode").value;
+  const selection_percentage = parseFloat(document.getElementById("query-selection-pct").value);
+
+  const btn = document.getElementById("query-run-btn");
+  btn.disabled = true;
+  btn.textContent = "Running…";
+  try {
+    const res = await fetch("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feature_values, aggregation_mode, selection_percentage }),
+    });
+    const record = await res.json();
+    if (!res.ok) {
+      errBox.textContent = record.error || `request failed (${res.status})`;
+      errBox.classList.remove("hidden");
+      return;
+    }
+    renderQueryResult(record);
+  } catch (e) {
+    errBox.textContent = String(e);
+    errBox.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run Query";
+  }
+}
+
+const QUERY_TAB_IDS = { segSelectId: "query-segment-select", canvasId: "query-canvas", detailId: "query-detail" };
+
+function renderQueryResult(record) {
+  document.getElementById("query-result").innerHTML = `
+    <div class="seg-card">
+      <h3>Result — score = ${Number(record.score).toFixed(3)}</h3>
+      ${bar("confidence", Number(record.confidence).toFixed(3), record.confidence)}
+      <div class="hint">dominant segment_id=${record.segment_id}  archetype=${record.archetype}
+        aggregation_mode=${record.breakdown?.aggregation_mode ?? ""}</div>
+    </div>`;
+
+  const segs = record.breakdown?.segments || {};
+  document.getElementById("query-confidence").innerHTML = Object.entries(segs).map(([segId, info]) => `
+    <div class="seg-card">
+      <h3>Segment ${segId}</h3>
+      ${bar("agg. weight", Number(info.weight).toFixed(4), info.weight)}
+      ${bar("cluster relevance", Number(info.relevance).toFixed(4), info.relevance)}
+      ${bar("predicted mean", Number(info.mean).toFixed(2), Math.min(info.mean / 100, 1))}
+      <div class="hint">n_reviewers=${info.n_reviewers}</div>
+    </div>`).join("");
+
+  const segIds = Object.keys(record.paths || {});
+  const segSel = document.getElementById("query-segment-select");
+  segSel.innerHTML = segIds.map(id => `<option value="${id}">segment ${id}</option>`).join("");
+  if (segIds.length === 0) {
+    document.getElementById("query-canvas").getContext("2d").clearRect(0, 0, 900, 480);
+    document.getElementById("query-detail").innerHTML = "<p class=\"hint\">No path data returned.</p>";
+    return;
+  }
+  segSel.onchange = () => drawPathsForSegment(record, QUERY_TAB_IDS);
+  drawPathsForSegment(record, QUERY_TAB_IDS);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("query-run-btn").addEventListener("click", runQuery);
 });
 
 // ── Boot ──────────────────────────────────────────────────────────────────

@@ -22,8 +22,17 @@ Design goals (in priority order, per the actual ask):
      (trace=...) / settings.infer.trace_enabled) — appended once per
      INFERENCE call, never per training sample.
   3. Works with any TCA run directory — point --dir at wherever a run's
-     .nexseg/.judgestate/logs/trace.jsonl files live. Nothing here imports
-     TCA's own Python modules; it only reads the JSON/text files they write.
+     .nexseg/.judgestate/logs/trace.jsonl files live. Everything above is
+     read-only and never imports TCA's own Python modules.
+
+One deliberate exception: POST /api/query. It loads the trained segments
+from --dir (SystemHandler.load_segments(), the same restore path hot-swap
+uses) and runs ONE live runInfer() call on whatever feature values the
+browser form submits — this does import TCA's modules and does execute
+code, unlike everything else here. Still cheap (a single inference, not
+training) and still local-only (binds to 127.0.0.1 only, no --host flag
+offered on purpose) — this is meant for a developer poking at their own
+run on their own machine, not a multi-user service.
 
 Usage
 -----
@@ -36,6 +45,7 @@ import json
 import os
 import re
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -53,6 +63,12 @@ class DataStore:
 
     def __init__(self, run_dir: str):
         self.run_dir = os.path.abspath(run_dir)
+        self._tca_ready = False   # lazily puts run_dir on sys.path — only needed for /api/query
+        self._query_logger = None
+        self._query_lock = threading.Lock()  # serialize live inference calls: the TCA codebase
+                                               # seeds/consumes a process-global random.random()
+                                               # stream with no locking of its own, so two
+                                               # concurrent queries could interleave draws.
 
     def _path(self, *parts) -> str:
         return os.path.join(self.run_dir, *parts)
@@ -245,6 +261,120 @@ class DataStore:
             rows = list(csv.DictReader(f))
         return rows[-limit:]
 
+    # ── Custom query (live inference — the one non-read-only feature) ──
+
+    MAX_CATEGORY_OPTIONS = 25
+    MAX_SCHEMA_ROWS_SCANNED = 20000  # bounded — one manual button click, not a poll loop
+
+    def get_input_schema(self) -> dict:
+        """Derive the form the browser should show for a custom query: every
+        dataset column except the target and any ignored_columns, tagged as
+        numeric (min/max) or categorical (observed value list) by scanning
+        the dataset CSV once. Falls back to 'text' for high-cardinality
+        non-numeric columns rather than dumping hundreds of <option>s."""
+        settings_path = self._path("settings.json")
+        if not os.path.exists(settings_path):
+            return {"columns": [], "error": "settings.json not found in run_dir"}
+        with open(settings_path) as f:
+            settings = json.load(f)
+        d = settings.get("dataset", {})
+        csv_path = self._path(d.get("csv_path", "dataset.csv"))
+        target = d.get("target_column")
+        ignored = set(d.get("ignored_columns") or [])
+        if not os.path.exists(csv_path):
+            return {"columns": [], "error": f"dataset csv not found: {csv_path}"}
+
+        import csv as csv_mod
+        with open(csv_path, newline="") as f:
+            reader = csv_mod.reader(f)
+            header = next(reader, [])
+            columns = [c for c in header if c != target and c not in ignored]
+            col_idx = {c: header.index(c) for c in columns}
+            stats = {c: {"is_numeric": True, "values": set(), "min": None, "max": None, "overflow": False}
+                     for c in columns}
+            for n, row in enumerate(reader):
+                if n >= self.MAX_SCHEMA_ROWS_SCANNED:
+                    break
+                for c in columns:
+                    idx = col_idx[c]
+                    raw = row[idx] if idx < len(row) else ""
+                    st = stats[c]
+                    try:
+                        v = float(raw)
+                        if st["min"] is None or v < st["min"]:
+                            st["min"] = v
+                        if st["max"] is None or v > st["max"]:
+                            st["max"] = v
+                    except ValueError:
+                        st["is_numeric"] = False
+                    if not st["overflow"]:
+                        st["values"].add(raw)
+                        if len(st["values"]) > self.MAX_CATEGORY_OPTIONS:
+                            st["overflow"] = True
+
+        result = []
+        for c in columns:
+            st = stats[c]
+            if st["is_numeric"]:
+                result.append({"name": c, "type": "numeric", "min": st["min"], "max": st["max"]})
+            elif not st["overflow"]:
+                result.append({"name": c, "type": "categorical", "options": sorted(st["values"])})
+            else:
+                result.append({"name": c, "type": "text"})
+        return {"columns": result, "target_column": target}
+
+    def _ensure_tca_importable(self) -> None:
+        if not self._tca_ready:
+            if self.run_dir not in sys.path:
+                sys.path.insert(0, self.run_dir)
+            self._tca_ready = True
+
+    def _get_query_logger(self):
+        if self._query_logger is None:
+            self._ensure_tca_importable()
+            import Components.RichConsole as RC
+            # log_level=0 / console_level=5: below every real classification
+            # (1-4), so this writes nothing to file or console. Every query's
+            # result is returned directly in the HTTP response — there's
+            # nothing here worth a persisted per-query log file.
+            self._query_logger = RC.RichLogger(filename="viz_tool_query.log", log_level=0, console_level=5)
+        return self._query_logger
+
+    def run_query(self, feature_values: dict, aggregation_mode: str = "bma",
+                  selection_percentage: float = 0.5) -> dict:
+        """Load the trained segments fresh from disk (same restore path
+        hot_swap_segment() uses) and run ONE live inference call on
+        feature_values, trace=True so the full breakdown/signal-path
+        structure comes back — same shape as any other trace.jsonl record,
+        just sourced from a live call instead of a past one.
+
+        Serialized behind self._query_lock: TCA's stochastic routing reads
+        the process-global random.random() stream with no locking of its
+        own, so two concurrent queries in different request threads could
+        otherwise interleave draws."""
+        with self._query_lock:
+            self._ensure_tca_importable()
+            from Settings import Settings
+            from SystemHandler import SystemHandler
+
+            settings = Settings(self._path("settings.json"))
+            logger = self._get_query_logger()
+            system = SystemHandler.from_settings(settings, logger)
+            system.load_segments(self.run_dir)
+
+            result = system.runInfer(
+                dict(feature_values), loud=False,
+                aggregation_mode=aggregation_mode, selection_percentage=selection_percentage,
+                trace=True, trace_path=self._path("trace.jsonl"),
+            )
+            if result is None:
+                raise ValueError(
+                    "runInfer returned no result — check feature_values match the "
+                    "columns from /api/schema."
+                )
+            records = self.read_trace(limit=1)
+            return records[-1] if records else result
+
 
 def _json_bytes(obj) -> bytes:
     return json.dumps(obj, default=str).encode("utf-8")
@@ -352,6 +482,51 @@ def make_handler(store: DataStore):
             if path == "/api/epoch_metrics":
                 limit = int(qs.get("limit", ["2000"])[0])
                 self._send_json(store.read_epoch_metrics(limit=limit))
+                return
+
+            if path == "/api/schema":
+                self._send_json(store.get_input_schema())
+                return
+
+            self.send_error(404, "Not found")
+
+        def do_POST(self):
+            parsed = urlparse(self.path)
+            path = parsed.path
+
+            if path == "/api/query":
+                length = int(self.headers.get("Content-Length", 0) or 0)
+                if length <= 0 or length > 1_000_000:  # a form of ~a dozen fields is bytes, not MB
+                    self._send_json({"error": "missing or oversized request body"}, status=400)
+                    return
+                try:
+                    body = json.loads(self.rfile.read(length))
+                except Exception:
+                    self._send_json({"error": "request body must be valid JSON"}, status=400)
+                    return
+
+                feature_values = body.get("feature_values")
+                if not isinstance(feature_values, dict) or not feature_values:
+                    self._send_json({"error": "feature_values must be a non-empty object"}, status=400)
+                    return
+                aggregation_mode = body.get("aggregation_mode", "bma")
+                try:
+                    selection_percentage = float(body.get("selection_percentage", 0.5))
+                except (TypeError, ValueError):
+                    self._send_json({"error": "selection_percentage must be a number"}, status=400)
+                    return
+
+                try:
+                    result = store.run_query(feature_values, aggregation_mode=aggregation_mode,
+                                             selection_percentage=selection_percentage)
+                except FileNotFoundError as e:
+                    self._send_json({"error": f"no trained segments found: {e}"}, status=400)
+                    return
+                except Exception as e:
+                    print(f"[/api/query] {type(e).__name__}: {e}", file=sys.stderr)
+                    self._send_json({"error": f"{type(e).__name__}: {e}"}, status=500)
+                    return
+                self._send_json(result)
                 return
 
             self.send_error(404, "Not found")

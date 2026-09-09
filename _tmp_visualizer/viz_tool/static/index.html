@@ -23,6 +23,7 @@
     <button class="tab-btn" data-tab="paths">Signal Paths</button>
     <button class="tab-btn" data-tab="curves">Training Curves</button>
     <button class="tab-btn" data-tab="logs">Logs</button>
+    <button class="tab-btn" data-tab="query">Query</button>
   </nav>
 
   <main>
@@ -89,6 +90,39 @@
         </label>
       </div>
       <div id="log-content"></div>
+    </section>
+
+    <section id="tab-query" class="tab-panel">
+      <div class="controls">
+        <span class="hint">Runs ONE live inference call against the trained segments in this run
+        directory — the only action here that executes code rather than just reading files.
+        Local-only, no auto-run.</span>
+      </div>
+      <div id="query-schema-hint" class="hint"></div>
+      <form id="query-form"></form>
+      <div class="controls">
+        <label>Aggregation mode:
+          <select id="query-aggregation-mode">
+            <option value="bma" selected>bma</option>
+            <option value="simple_mean">simple_mean</option>
+            <option value="relevance_weighted">relevance_weighted</option>
+          </select>
+        </label>
+        <label>Selection %:
+          <input type="number" id="query-selection-pct" value="0.5" min="0" max="1" step="0.05" style="width:5em">
+        </label>
+        <button type="button" id="query-run-btn">Run Query</button>
+      </div>
+      <div id="query-error" class="hint hidden"></div>
+      <div id="query-result"></div>
+      <div id="query-confidence"></div>
+      <div class="controls">
+        <label>Segment (signal paths):
+          <select id="query-segment-select"></select>
+        </label>
+      </div>
+      <canvas id="query-canvas" width="900" height="480"></canvas>
+      <div id="query-detail"></div>
     </section>
   </main>
 
