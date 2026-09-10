@@ -1,0 +1,3 @@
+timestamp,segment_id,target,max_x,dimensions,epoch_count,n_train,n_test,best_epoch,best_test_error_pct,related_train_error_pct,mae,rmse,r2,mape_pct,acc_5_pct,acc_10_pct,acc_20_pct,direction_acc_pct,precision,recall,f1,tp,fp,fn,tn,connection_pct,density
+2026-09-10 19:04:43,0,exam_score,6,1,4,121,31,1,71.3407,71.1816,46.154871,51.518998,-5.220702,71.3407,0.00,0.00,0.00,48.39,,0.000000,,0,0,16,15,0.1,0.8
+2026-09-10 19:04:43,1,exam_score,6,1,4,118,30,1,76.0512,87.4055,56.266667,59.241849,-13.939186,76.0512,0.00,0.00,0.00,50.00,,0.000000,,0,0,15,15,0.1,0.8

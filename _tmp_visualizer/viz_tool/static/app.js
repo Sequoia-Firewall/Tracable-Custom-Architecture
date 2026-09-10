@@ -25,10 +25,20 @@ async function loadStatus() {
     `judge_state=${s.has_judge_state ? "yes" : "no"}`;
 
   const banner = document.getElementById("viz-disabled-banner");
-  document.getElementById("max-dims").textContent = s.max_visualizable_dimensions;
   if (s.visualization_enabled) {
     banner.classList.add("hidden");
   } else {
+    // visualization_enabled is false for two very different reasons --
+    // don't claim ">3 dimensions" when the real issue is "no segment data
+    // found yet" (dimensions is null, e.g. wrong --dir or nothing trained).
+    if (s.dimensions === null || s.dimensions === undefined) {
+      banner.textContent = `Visualization disabled: no trained segment (.nexseg) files found in ` +
+        `"${s.run_dir}". Point --dir at a run directory that has segment_0.nexseg etc., or train first.`;
+    } else {
+      banner.textContent = `Visualization disabled: this run has ${s.dimensions} dimensions, more than ` +
+        `${s.max_visualizable_dimensions}. Geometric rendering isn't meaningful past that — use the ` +
+        `Logs and Confidence tabs instead.`;
+    }
     banner.classList.remove("hidden");
   }
   // Graph and Signal Paths tabs need geometric rendering — disable their

@@ -96,6 +96,10 @@ class DataStore:
                 "n_nodes": len(data.get("processing_nodes", [])),
                 "n_reviewers": len(data.get("reviewers", [])),
             })
+        # os.listdir() gave string order (segment_10 before segment_2) --
+        # sort by the parsed integer id instead so get_dimensions()'s
+        # segs[0] is reliably segment 0, not whichever sorted first as text.
+        out.sort(key=lambda s: s["segment_id"])
         return out
 
     def get_segment(self, seg_id: int, include_weights: bool = False) -> dict | None:
