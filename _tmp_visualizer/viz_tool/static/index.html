@@ -26,6 +26,7 @@
   <main>
     <section id="tab-graph" class="tab-panel active">
       <div class="controls">
+        <label class="checkbox"><input type="checkbox" id="graph-show-all-segments"> all segments at once</label>
         <label>Segment:
           <select id="graph-segment-select"></select>
         </label>
@@ -33,6 +34,7 @@
         <label class="checkbox"><input type="checkbox" id="graph-show-reviewers" checked> reviewers</label>
         <span id="graph-node-count" class="hint"></span>
       </div>
+      <div id="graph-legend" class="hint"></div>
       <canvas id="graph-canvas" width="900" height="640"></canvas>
       <div id="graph-tooltip" class="tooltip hidden"></div>
     </section>

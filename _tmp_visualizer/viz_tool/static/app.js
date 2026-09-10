@@ -96,6 +96,8 @@ function project(position, maxX, canvasW, canvasH) {
 
 // ── Graph tab ─────────────────────────────────────────────────────────────
 
+const SEGMENT_COLORS = ["#4dabf7", "#ff922b", "#51cf66", "#e64980", "#fab005", "#845ef7", "#20c997", "#ff6b6b"];
+
 async function loadGraphTab() {
   if (state.segments.length === 0) {
     state.segments = await fetchJSON("/api/segments");
@@ -108,30 +110,17 @@ async function loadGraphTab() {
     document.getElementById("graph-node-count").textContent = "no .nexseg files found in this directory";
     return;
   }
-  await drawSelectedSegment();
+  await drawGraph();
 }
 
-async function drawSelectedSegment() {
-  const sel = document.getElementById("graph-segment-select");
-  const segId = sel.value || sel.options[0]?.value;
-  if (segId === undefined) return;
-  const seg = await fetchJSON(`/api/segment/${segId}`);
-  document.getElementById("graph-node-count").textContent =
-    `${seg.processing_nodes.length} processing nodes, ${seg.reviewers.length} reviewers, max_x=${seg.max_x}, dim=${seg.dimensions}`;
-
-  const canvas = document.getElementById("graph-canvas");
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  const showConn = document.getElementById("graph-show-connections").checked;
-  const showRev = document.getElementById("graph-show-reviewers").checked;
-  const maxX = seg.max_x || 10;
-
-  const posOf = p => project(p, maxX, canvas.width, canvas.height);
-
-  // Connections first (under the nodes)
+// Draws one segment's nodes/connections/splitter/reviewers onto an already-
+// cleared canvas in a given color, and appends its node positions (tagged
+// with segment_id) onto the shared nodePositions array used by the hover
+// tooltip. Shared by both single-segment and all-segments rendering so
+// there's one drawing implementation, not two.
+function drawOneSegment(seg, ctx, posOf, color, showConn, showRev, nodePositions) {
   if (showConn) {
-    ctx.strokeStyle = "rgba(77,171,247,0.18)";
+    ctx.strokeStyle = color + "2e"; // ~18% alpha, matches the old rgba(...,0.18)
     ctx.lineWidth = 1;
     for (const node of seg.processing_nodes) {
       const [nx, ny] = posOf(node.position);
@@ -154,18 +143,17 @@ async function drawSelectedSegment() {
     }
   }
 
-  // Processing nodes
-  ctx.fillStyle = "#4dabf7";
-  const nodePositions = [];
+  ctx.fillStyle = color;
   for (const node of seg.processing_nodes) {
     const [x, y] = posOf(node.position);
     ctx.beginPath();
     ctx.arc(x, y, 3, 0, Math.PI * 2);
     ctx.fill();
-    nodePositions.push({ x, y, position: node.position });
+    nodePositions.push({ x, y, position: node.position, segment_id: seg.segment_id });
   }
 
-  // Splitter (diamond)
+  // Splitter (diamond) — always orange regardless of segment color, so it
+  // stays a consistent landmark across every segment.
   const [spx, spy] = posOf(seg.splitter.position);
   ctx.fillStyle = "#ff922b";
   ctx.save();
@@ -174,9 +162,8 @@ async function drawSelectedSegment() {
   ctx.fillRect(-6, -6, 12, 12);
   ctx.restore();
 
-  // Reviewers (stars, approximated as larger circles + outline)
   if (showRev) {
-    ctx.fillStyle = "#51cf66";
+    ctx.fillStyle = color;
     ctx.strokeStyle = "#eaffea";
     ctx.lineWidth = 1.5;
     for (const revPos of seg.reviewers) {
@@ -186,6 +173,49 @@ async function drawSelectedSegment() {
       ctx.fill();
       ctx.stroke();
     }
+  }
+}
+
+async function drawGraph() {
+  const showAll = document.getElementById("graph-show-all-segments").checked;
+  const sel = document.getElementById("graph-segment-select");
+  sel.disabled = showAll;
+
+  const canvas = document.getElementById("graph-canvas");
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const showConn = document.getElementById("graph-show-connections").checked;
+  const showRev = document.getElementById("graph-show-reviewers").checked;
+  const legend = document.getElementById("graph-legend");
+  const nodePositions = [];
+
+  if (showAll) {
+    const segs = await Promise.all(state.segments.map(s => fetchJSON(`/api/segment/${s.segment_id}`)));
+    const maxX = Math.max(...segs.map(s => s.max_x || 10));
+    const posOf = p => project(p, maxX, canvas.width, canvas.height);
+    let totalNodes = 0, totalReviewers = 0;
+    segs.forEach((seg, i) => {
+      const color = SEGMENT_COLORS[i % SEGMENT_COLORS.length];
+      drawOneSegment(seg, ctx, posOf, color, showConn, showRev, nodePositions);
+      totalNodes += seg.processing_nodes.length;
+      totalReviewers += seg.reviewers.length;
+    });
+    document.getElementById("graph-node-count").textContent =
+      `${segs.length} segments, ${totalNodes} processing nodes total, ${totalReviewers} reviewers total, max_x=${maxX}`;
+    legend.innerHTML = segs.map((seg, i) =>
+      `<span style="color:${SEGMENT_COLORS[i % SEGMENT_COLORS.length]}">● segment ${seg.segment_id}</span>`
+    ).join("  ");
+  } else {
+    legend.innerHTML = "";
+    const segId = sel.value || sel.options[0]?.value;
+    if (segId === undefined) return;
+    const seg = await fetchJSON(`/api/segment/${segId}`);
+    document.getElementById("graph-node-count").textContent =
+      `${seg.processing_nodes.length} processing nodes, ${seg.reviewers.length} reviewers, max_x=${seg.max_x}, dim=${seg.dimensions}`;
+    const maxX = seg.max_x || 10;
+    const posOf = p => project(p, maxX, canvas.width, canvas.height);
+    drawOneSegment(seg, ctx, posOf, "#4dabf7", showConn, showRev, nodePositions);
   }
 
   // Hover tooltip (recomputed on mousemove, cheap nearest-point search over
@@ -200,7 +230,8 @@ async function drawSelectedSegment() {
       if (d < bestDist) { bestDist = d; nearest = p; }
     }
     if (nearest) {
-      tooltip.textContent = `pos=[${nearest.position.map(v => v.toFixed(2)).join(", ")}]`;
+      const segLabel = showAll ? `segment ${nearest.segment_id}  ` : "";
+      tooltip.textContent = `${segLabel}pos=[${nearest.position.map(v => v.toFixed(2)).join(", ")}]`;
       tooltip.style.left = `${e.clientX + 12}px`;
       tooltip.style.top = `${e.clientY + 12}px`;
       tooltip.classList.remove("hidden");
@@ -212,9 +243,10 @@ async function drawSelectedSegment() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("graph-segment-select").addEventListener("change", drawSelectedSegment);
-  document.getElementById("graph-show-connections").addEventListener("change", drawSelectedSegment);
-  document.getElementById("graph-show-reviewers").addEventListener("change", drawSelectedSegment);
+  document.getElementById("graph-segment-select").addEventListener("change", drawGraph);
+  document.getElementById("graph-show-connections").addEventListener("change", drawGraph);
+  document.getElementById("graph-show-reviewers").addEventListener("change", drawGraph);
+  document.getElementById("graph-show-all-segments").addEventListener("change", drawGraph);
 });
 
 // ── Confidence tab ─────────────────────────────────────────────────────────
