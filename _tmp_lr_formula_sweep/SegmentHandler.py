@@ -472,7 +472,7 @@ class SegmentHandler:
                           same way as 'auto'.
         'manual-full'  : max_lr_scale and decay are both literal; no floor.
         """
-        lr_cfg = lr_cfg or {'mode': 'auto', 'min_lr_scale': 0.5, 'max_lr_scale': 3.0}
+        lr_cfg = lr_cfg or {'mode': 'auto', 'min_lr_scale': 0.1, 'max_lr_scale': 1.0}
         mode = lr_cfg.get('mode', 'auto')
 
         def _solve_decay(max_scale, min_scale):
@@ -494,8 +494,14 @@ class SegmentHandler:
             return max_scale, min_scale, decay
 
         # auto
-        floor   = lr_cfg.get('min_lr_scale', 0.5)
-        ceiling = lr_cfg.get('max_lr_scale', 3.0)
+        # Bounds lowered from (0.5, 3.0) after a full-dataset run (max_x=20)
+        # hit the old ceiling and scored R2~=0 vs R2=0.556 for the manually-
+        # tuned max_lr_scale=1.0 on identical data -- see
+        # _tmp_lr_formula_sweep/ for the sweep this came from. The formula's
+        # SHAPE (node_activations, the 2000-row reference) is still under
+        # investigation; these clamp bounds are a low-risk interim fix.
+        floor   = lr_cfg.get('min_lr_scale', 0.1)
+        ceiling = lr_cfg.get('max_lr_scale', 1.0)
         if train_rows:
             num_nodes = len(self.segmentComponents['processing_nodes']) if self.segmentComponents else 0
             if num_nodes > 0:

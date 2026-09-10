@@ -42,10 +42,27 @@ _DEFAULTS = {
         "test_split": 0.2,
         "learning_rate": {
             "mode": "auto",        # "auto" | "manual-scale" | "manual-full"
-            "min_lr_scale": 0.5,   # auto: clamp FLOOR for the row-count formula (2000/train_rows)
+            "min_lr_scale": 0.1,   # auto: clamp FLOOR for the node_activations formula. Was 0.5 --
+                                    # lowered after a full-dataset auto run (max_x=20) hit the OLD
+                                    # ceiling (see max_lr_scale below) and scored R2~=0; a follow-up
+                                    # sweep found deep/high-row-count graphs genuinely wanted LR
+                                    # scales as low as ~0.10 (statistically distinguishable from
+                                    # neighboring candidates, not noise), well below the old 0.5
+                                    # floor. See _tmp_lr_formula_sweep/ for the sweep + numbers.
                                     # manual-scale: literal min endpoint of the decay curve
                                     # manual-full: unused
-            "max_lr_scale": 3.0,   # auto: clamp CEILING for the row-count formula
+            "max_lr_scale": 1.0,   # auto: clamp CEILING for the node_activations formula. Was 3.0 --
+                                    # that's what the full-dataset auto run above actually hit
+                                    # (node_activations~=219 -> formula wanted ~9.1, clamped to 3.0,
+                                    # i.e. 3x the already-validated manual-full max_lr_scale=1.0),
+                                    # and produced R2~=0 vs the manual config's R2=0.556 on
+                                    # identical data. Nothing tested across either sweep (max_x
+                                    # 5-15, sample sizes 150-2000) ever wanted more than ~0.75, so
+                                    # 1.0 -- matching the proven manual value -- is a conservative,
+                                    # well-supported ceiling. The formula's SHAPE (the 2000-row
+                                    # reference constant, and whether node_activations is even the
+                                    # right single variable) is still under investigation -- these
+                                    # clamp bounds are a low-risk interim fix, not the full answer.
                                     # manual-scale: literal max endpoint (decay solved from epoch_count)
                                     # manual-full: literal starting scale (decay set explicitly below)
             "decay": None,         # manual-full only: literal per-epoch decay factor (e.g. 0.85)
