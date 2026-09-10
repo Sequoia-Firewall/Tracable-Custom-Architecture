@@ -1,0 +1,201 @@
+{
+  "segment_id": 0,
+  "max_x": 6,
+  "dimensions": 1,
+  "target": "exam_score",
+  "pred_min": 0,
+  "pred_max": 100,
+  "delta_clip": 10,
+  "grad_clip": 1,
+  "splitter": {
+    "position": [
+      1
+    ],
+    "signal_weights": {
+      "gender_other": 1.783301275936259,
+      "gender_female": 1.4724192645824017,
+      "gender_male": 1.4143088587557064,
+      "course_bba": 1.3223570192106513,
+      "course_bca": 1.2661722279178085,
+      "course_ba": 1.1939970553455803,
+      "course_diploma": 1.1443105280468728,
+      "course_b.tech": 1.1787572850492087,
+      "course_b.sc": 1.1887066146461145,
+      "course_b.com": 1.2676832235086144,
+      "internet_access_yes": 2.4861921119031023,
+      "internet_access_no": 1.2119677251936531,
+      "sleep_quality_poor": 1.5993823217364609,
+      "sleep_quality_good": 1.6147122310447708,
+      "sleep_quality_average": 1.4416116237176213,
+      "study_method_mixed": 1.2936519169991678,
+      "study_method_coaching": 1.3528781487743187,
+      "study_method_self-study": 1.35202574389652,
+      "study_method_online videos": 1.3479848297023704,
+      "study_method_group study": 1.2638266882864748,
+      "facility_rating_medium": 1.5112544312790523,
+      "facility_rating_high": 1.5347087270537862,
+      "facility_rating_low": 1.613088112464095,
+      "exam_difficulty_easy": 1.5900290173504477,
+      "exam_difficulty_hard": 1.266520588944799,
+      "exam_difficulty_moderate": 1.8145230995075845,
+      "age": 2.7799999999999936,
+      "study_hours": 2.725033729858692,
+      "class_attendance": 2.7799999999999936,
+      "sleep_hours": 2.7799999999999936,
+      "exam_score": 1.0
+    },
+    "connected_positions": [
+      [
+        1.4127952731041857
+      ]
+    ]
+  },
+  "reviewers": [
+    [
+      6
+    ]
+  ],
+  "processing_nodes": [
+    {
+      "position": [
+        1.4127952731041857
+      ],
+      "weights": {
+        "gender_other": 0.5567222792791058,
+        "gender_female": 0.36698748879940946,
+        "gender_male": 0.38579205426458746,
+        "course_bba": 0.29010165587022607,
+        "course_bca": 0.2239968411687174,
+        "course_ba": 0.19069650090983448,
+        "course_diploma": 0.14285400890489042,
+        "course_b.tech": 0.1666308240122011,
+        "course_b.sc": 0.17236517027819628,
+        "course_b.com": 0.22278878390980636,
+        "internet_access_yes": 1.0762348175298628,
+        "internet_access_no": 0.19525575327171954,
+        "sleep_quality_poor": 0.4531568941281936,
+        "sleep_quality_good": 0.45666687695694325,
+        "sleep_quality_average": 0.3940433781936474,
+        "study_method_mixed": 0.25844667364968565,
+        "study_method_coaching": 0.29238803970969035,
+        "study_method_self-study": 0.2783744495527853,
+        "study_method_online videos": 0.3062208524158937,
+        "study_method_group study": 0.23906307484648895,
+        "facility_rating_medium": 0.3953676545123649,
+        "facility_rating_high": 0.4514023259602649,
+        "facility_rating_low": 0.45898995541838183,
+        "exam_difficulty_easy": 0.45411298138373224,
+        "exam_difficulty_hard": 0.22419239205279837,
+        "exam_difficulty_moderate": 0.6192079518430786,
+        "age": 1.2443325851434677,
+        "study_hours": 1.2484006299816175,
+        "class_attendance": 1.2468527002500063,
+        "sleep_hours": 1.242982626345224,
+        "exam_score": 0.041720379795716446,
+        "input_prediction": 0.0298287520602961
+      },
+      "connected_positions": [
+        [
+          2.8837747751445737
+        ],
+        [
+          3.8394603601668535
+        ],
+        [
+          6
+        ]
+      ]
+    },
+    {
+      "position": [
+        2.8837747751445737
+      ],
+      "weights": {
+        "gender_other": 0.11329887714159355,
+        "gender_female": 0.15884615780118894,
+        "gender_male": 0.07462845956341395,
+        "course_bba": 0.07949220252234457,
+        "course_bca": 0.08380510742126426,
+        "course_ba": 0.0663495012404275,
+        "course_diploma": 0.05317455218924228,
+        "course_b.tech": 0.04681603002915997,
+        "course_b.sc": 0.048045823788171176,
+        "course_b.com": 0.07385390405460159,
+        "internet_access_yes": 0.2169138822433497,
+        "internet_access_no": 0.07427809310432361,
+        "sleep_quality_poor": 0.13781753657833087,
+        "sleep_quality_good": 0.114971753401417,
+        "sleep_quality_average": 0.07955470809553071,
+        "study_method_mixed": 0.05966168385846669,
+        "study_method_coaching": 0.08644820513155878,
+        "study_method_self-study": 0.0775976209571113,
+        "study_method_online videos": 0.0909911562703789,
+        "study_method_group study": 0.08521877222106089,
+        "facility_rating_medium": 0.10444068462946877,
+        "facility_rating_high": 0.09568083748009096,
+        "facility_rating_low": 0.136840600475136,
+        "exam_difficulty_easy": 0.12552611439136757,
+        "exam_difficulty_hard": 0.06984717335128199,
+        "exam_difficulty_moderate": 0.14204853152886093,
+        "age": 0.275058059713211,
+        "study_hours": 0.2725803954822964,
+        "class_attendance": 0.2759503495359266,
+        "sleep_hours": 0.2791151029199253,
+        "exam_score": 0.03777806274705393,
+        "input_prediction": 0.2668390259554112
+      },
+      "connected_positions": [
+        [
+          3.8394603601668535
+        ],
+        [
+          6
+        ]
+      ]
+    },
+    {
+      "position": [
+        3.8394603601668535
+      ],
+      "weights": {
+        "gender_other": 0.25290006939420984,
+        "gender_female": 0.07856712547731066,
+        "gender_male": 0.07761288203564308,
+        "course_bba": 0.08647772138785555,
+        "course_bca": 0.07111625880283012,
+        "course_ba": 0.06978541704558242,
+        "course_diploma": 0.04855162213209859,
+        "course_b.tech": 0.08536683782202663,
+        "course_b.sc": 0.08017070253734232,
+        "course_b.com": 0.13054901631093987,
+        "internet_access_yes": 0.33143510156787714,
+        "internet_access_no": 0.057555667846090085,
+        "sleep_quality_poor": 0.1671906146700087,
+        "sleep_quality_good": 0.14348542719939203,
+        "sleep_quality_average": 0.10751289668658771,
+        "study_method_mixed": 0.10394978432059983,
+        "study_method_coaching": 0.09021452218817856,
+        "study_method_self-study": 0.12024607461893695,
+        "study_method_online videos": 0.08664447969927469,
+        "study_method_group study": 0.10220881664603122,
+        "facility_rating_medium": 0.17244859038965835,
+        "facility_rating_high": 0.10407625275960489,
+        "facility_rating_low": 0.1332003920246237,
+        "exam_difficulty_easy": 0.1644510471231422,
+        "exam_difficulty_hard": 0.07480698535019083,
+        "exam_difficulty_moderate": 0.18809965180338833,
+        "age": 0.36070126385212287,
+        "study_hours": 0.35352861863916835,
+        "class_attendance": 0.35989045024625993,
+        "sleep_hours": 0.37218049212093113,
+        "exam_score": 0.03284035141811177,
+        "input_prediction": 0.3716796320684016
+      },
+      "connected_positions": [
+        [
+          6
+        ]
+      ]
+    }
+  ]
+}
