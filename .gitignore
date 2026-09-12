@@ -201,3 +201,8 @@ v11/error-epoch.csv
 error.txt
 TCA1.1.0/comparison_checkpoint_c160cb8acff8.json
 TCA1.1.0/error-epoch.csv
+
+# Large third-party datasets -- too big for git, documented in
+# datasets/<name>/README.md with download instructions instead.
+datasets/yearpredictionmsd/YearPredictionMSD.txt
+datasets/*/*.zip
