@@ -1,0 +1,197 @@
+{
+  "reference_points_already_measured": {
+    "max_lr_scale=1.0 (manual-full, decay=0.85)": {
+      "r2": 0.5564663911964134,
+      "mae": 10.261075859053616,
+      "source": "full_manual_parallel_report.json"
+    },
+    "max_lr_scale~=3.0 (old auto ceiling)": {
+      "r2": -0.004268064013699835,
+      "mae": 15.805567172893674,
+      "source": "full_auto_parallel_report.json"
+    }
+  },
+  "candidates": [
+    {
+      "max_lr_scale": 0.05,
+      "train_wall_time_sec": 4041.9,
+      "eval_wall_time_sec": 135.1,
+      "worker_results": [
+        {
+          "segment_id": 0,
+          "nexseg_path": "segment_0.nexseg",
+          "train_time_sec": 3839.06
+        },
+        {
+          "segment_id": 1,
+          "nexseg_path": "segment_1.nexseg",
+          "train_time_sec": 3588.08
+        },
+        {
+          "segment_id": 2,
+          "nexseg_path": "segment_2.nexseg",
+          "train_time_sec": 3778.7
+        },
+        {
+          "segment_id": 3,
+          "nexseg_path": "segment_3.nexseg",
+          "train_time_sec": 3868.34
+        }
+      ],
+      "test_metrics": {
+        "mae": 13.117277242893241,
+        "rmse": 16.254281530977565,
+        "r2": 0.278890997236522,
+        "mape_pct": 23.70791447141578,
+        "acc_5_pct": 15.0,
+        "acc_10_pct": 27.875,
+        "acc_20_pct": 53.349999999999994,
+        "direction_acc_pct": 69.875,
+        "precision": 0.7995512341062079,
+        "recall": 0.532901296111665,
+        "f1": 0.6395453185761293,
+        "tp": 1069,
+        "fp": 268,
+        "fn": 937,
+        "tn": 1726,
+        "n": 4000
+      }
+    },
+    {
+      "max_lr_scale": 0.1,
+      "train_wall_time_sec": 3942.0,
+      "eval_wall_time_sec": 134.3,
+      "worker_results": [
+        {
+          "segment_id": 0,
+          "nexseg_path": "segment_0.nexseg",
+          "train_time_sec": 3735.12
+        },
+        {
+          "segment_id": 1,
+          "nexseg_path": "segment_1.nexseg",
+          "train_time_sec": 3640.87
+        },
+        {
+          "segment_id": 2,
+          "nexseg_path": "segment_2.nexseg",
+          "train_time_sec": 3566.52
+        },
+        {
+          "segment_id": 3,
+          "nexseg_path": "segment_3.nexseg",
+          "train_time_sec": 3767.59
+        }
+      ],
+      "test_metrics": {
+        "mae": 9.079883782685817,
+        "rmse": 11.217623419301328,
+        "r2": 0.6565471890078299,
+        "mape_pct": 17.520510484570472,
+        "acc_5_pct": 20.625,
+        "acc_10_pct": 41.575,
+        "acc_20_pct": 72.39999999999999,
+        "direction_acc_pct": 82.3,
+        "precision": 0.7974335472043996,
+        "recall": 0.8673978065802592,
+        "f1": 0.830945558739255,
+        "tp": 1740,
+        "fp": 442,
+        "fn": 266,
+        "tn": 1552,
+        "n": 4000
+      }
+    },
+    {
+      "max_lr_scale": 0.25,
+      "train_wall_time_sec": 4211.2,
+      "eval_wall_time_sec": 131.8,
+      "worker_results": [
+        {
+          "segment_id": 0,
+          "nexseg_path": "segment_0.nexseg",
+          "train_time_sec": 3668.61
+        },
+        {
+          "segment_id": 1,
+          "nexseg_path": "segment_1.nexseg",
+          "train_time_sec": 3473.91
+        },
+        {
+          "segment_id": 2,
+          "nexseg_path": "segment_2.nexseg",
+          "train_time_sec": 3942.51
+        },
+        {
+          "segment_id": 3,
+          "nexseg_path": "segment_3.nexseg",
+          "train_time_sec": 4029.37
+        }
+      ],
+      "test_metrics": {
+        "mae": 8.354317705626139,
+        "rmse": 10.392316779113925,
+        "r2": 0.7052253616564084,
+        "mape_pct": 15.75501880805031,
+        "acc_5_pct": 23.1,
+        "acc_10_pct": 44.65,
+        "acc_20_pct": 74.4,
+        "direction_acc_pct": 84.45,
+        "precision": 0.8227611940298507,
+        "recall": 0.8793619142572283,
+        "f1": 0.8501204819277107,
+        "tp": 1764,
+        "fp": 380,
+        "fn": 242,
+        "tn": 1614,
+        "n": 4000
+      }
+    },
+    {
+      "max_lr_scale": 0.5,
+      "train_wall_time_sec": 4341.1,
+      "eval_wall_time_sec": 132.9,
+      "worker_results": [
+        {
+          "segment_id": 0,
+          "nexseg_path": "segment_0.nexseg",
+          "train_time_sec": 3952.81
+        },
+        {
+          "segment_id": 1,
+          "nexseg_path": "segment_1.nexseg",
+          "train_time_sec": 3801.29
+        },
+        {
+          "segment_id": 2,
+          "nexseg_path": "segment_2.nexseg",
+          "train_time_sec": 4159.36
+        },
+        {
+          "segment_id": 3,
+          "nexseg_path": "segment_3.nexseg",
+          "train_time_sec": 4055.06
+        }
+      ],
+      "test_metrics": {
+        "mae": 8.844858410252211,
+        "rmse": 10.942094720021421,
+        "r2": 0.6732118482004281,
+        "mape_pct": 16.546636588285164,
+        "acc_5_pct": 21.775,
+        "acc_10_pct": 42.025,
+        "acc_20_pct": 72.0,
+        "direction_acc_pct": 82.75,
+        "precision": 0.8063314711359404,
+        "recall": 0.8634097706879362,
+        "f1": 0.8338950409244102,
+        "tp": 1732,
+        "fp": 416,
+        "fn": 274,
+        "tn": 1578,
+        "n": 4000
+      }
+    }
+  ],
+  "elapsed_sec": 17071.0
+}
