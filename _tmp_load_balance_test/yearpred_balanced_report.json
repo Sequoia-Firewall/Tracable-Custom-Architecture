@@ -1,0 +1,135 @@
+{
+  "config": {
+    "sample_size": 40000,
+    "n_train": 32000,
+    "n_test": 8000,
+    "dimensions": 2,
+    "epoch_count": 10,
+    "lr_mode": "auto"
+  },
+  "baseline_reference_unbalanced": {
+    "15": {
+      "r2": -0.0921,
+      "mae": 8.752,
+      "train_wall_time_sec": 6514.0,
+      "worker_times": [
+        6285.74,
+        5350.74,
+        1627.76,
+        783.29
+      ]
+    },
+    "20": {
+      "r2": -0.0379,
+      "mae": 8.009,
+      "train_wall_time_sec": 15755.0,
+      "worker_times": [
+        15525.88,
+        11824.96,
+        3569.09,
+        1659.98
+      ]
+    }
+  },
+  "runs": [
+    {
+      "max_x": 15,
+      "train_wall_time_sec": 4656.3,
+      "eval_wall_time_sec": 171.5,
+      "shard_results": [
+        {
+          "segment_id": 0,
+          "nexseg_path": "segment_0.nexseg",
+          "n_shards": 2,
+          "total_shard_train_time_sec": 6884.58
+        },
+        {
+          "segment_id": 1,
+          "nexseg_path": "segment_1.nexseg",
+          "n_shards": 2,
+          "total_shard_train_time_sec": 5835.76
+        },
+        {
+          "segment_id": 2,
+          "nexseg_path": "segment_2.nexseg",
+          "n_shards": 1,
+          "total_shard_train_time_sec": 1541.46
+        },
+        {
+          "segment_id": 3,
+          "nexseg_path": "segment_3.nexseg",
+          "n_shards": 1,
+          "total_shard_train_time_sec": 760.42
+        }
+      ],
+      "test_metrics": {
+        "mae": 10.011823238926643,
+        "rmse": 12.138239251648665,
+        "r2": -0.266962989692644,
+        "mape_pct": 0.5015251665982643,
+        "acc_5_pct": 100.0,
+        "acc_10_pct": 100.0,
+        "acc_20_pct": 100.0,
+        "direction_acc_pct": 49.9,
+        "precision": 0.6855123674911661,
+        "recall": 0.04716751762703623,
+        "f1": 0.08826205641492266,
+        "tp": 194,
+        "fp": 89,
+        "fn": 3919,
+        "tn": 3798,
+        "n": 8000
+      }
+    },
+    {
+      "max_x": 20,
+      "train_wall_time_sec": 10074.5,
+      "eval_wall_time_sec": 383.1,
+      "shard_results": [
+        {
+          "segment_id": 0,
+          "nexseg_path": "segment_0.nexseg",
+          "n_shards": 2,
+          "total_shard_train_time_sec": 15418.04
+        },
+        {
+          "segment_id": 1,
+          "nexseg_path": "segment_1.nexseg",
+          "n_shards": 2,
+          "total_shard_train_time_sec": 13113.19
+        },
+        {
+          "segment_id": 2,
+          "nexseg_path": "segment_2.nexseg",
+          "n_shards": 1,
+          "total_shard_train_time_sec": 3395.47
+        },
+        {
+          "segment_id": 3,
+          "nexseg_path": "segment_3.nexseg",
+          "n_shards": 1,
+          "total_shard_train_time_sec": 1619.82
+        }
+      ],
+      "test_metrics": {
+        "mae": 9.847155454530279,
+        "rmse": 11.984725440732735,
+        "r2": -0.2351187652774731,
+        "mape_pct": 0.4933338799141486,
+        "acc_5_pct": 100.0,
+        "acc_10_pct": 100.0,
+        "acc_20_pct": 100.0,
+        "direction_acc_pct": 48.625,
+        "precision": 0.5137614678899083,
+        "recall": 0.01361536591295891,
+        "f1": 0.026527711984841308,
+        "tp": 56,
+        "fp": 53,
+        "fn": 4057,
+        "tn": 3834,
+        "n": 8000
+      }
+    }
+  ],
+  "elapsed_sec": 15292.4
+}
