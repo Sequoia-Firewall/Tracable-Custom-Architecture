@@ -10,6 +10,7 @@ import pandas as pd
 import Components.RichConsole as RC
 from comparisons.RandomForestModel import RandomForestModel
 from comparisons.XGBoostModel import XGBoostModel
+from comparisons.shared_metrics import compute_metrics
 
 COLS = [
     "duration","protocol_type","service","flag","src_bytes","dst_bytes","land",
@@ -56,20 +57,46 @@ def main():
     test_records = test_enc.to_dict(orient="records")
     print(f"train={len(train_records)}  test={len(test_records)}  n_features={len(feature_cols)}")
 
-    logger = RC.RichLogger(filename=f"nslkdd_baselines_{int(time.time())}.log", log_level=4, console_level=2)
-
     results = {}
+
+    def fit_and_eval(model_wrapper, name):
+        # NOT using model_wrapper.run() -- both RandomForestModel and
+        # XGBoostModel hardcode `if a != 0` when building the eval set,
+        # presumably to guard MAPE division-by-zero on continuous regression
+        # targets (exam-score, year). For this binary 0/1 "threat" target,
+        # 0 is a legitimate, common class label (~46% of rows) -- that
+        # filter would silently drop nearly half the test set (every
+        # "normal" row) and corrupt R2/precision/recall. Fit the underlying
+        # sklearn/xgboost model directly and score on the FULL, correct
+        # label set instead, via the same compute_metrics() everything
+        # else uses.
+        X_train = [[float(r.get(f, 0)) for f in feature_cols] for r in train_records]
+        y_train = [float(r.get(TARGET, 0)) for r in train_records]
+        X_test = [[float(r.get(f, 0)) for f in feature_cols] for r in test_records]
+        y_test = [float(r.get(TARGET, 0)) for r in test_records]
+
+        t0 = time.time()
+        model_wrapper.model.fit(X_train, y_train)
+        train_time = time.time() - t0
+        t1 = time.time()
+        preds = list(model_wrapper.model.predict(X_test))
+        inference_time = time.time() - t1
+
+        metrics = compute_metrics(preds, y_test)
+        metrics.update({"model_name": name, "n_train": len(train_records), "n_test": len(y_test),
+                        "train_time_sec": round(train_time, 4), "inference_time_sec": round(inference_time, 6)})
+        return metrics
 
     print("\n=== RandomForest ===")
     rf = RandomForestModel(n_estimators=100, random_state=42)
-    rf_metrics = rf.run(train_records, test_records, feature_cols, TARGET, logger=logger)
+    rf_metrics = fit_and_eval(rf, "RandomForest")
     results["RandomForest"] = rf_metrics
     print(f"RandomForest: R2={rf_metrics['r2']:.4f}  precision={rf_metrics['precision']:.3f}  "
           f"recall={rf_metrics['recall']:.3f}  f1={rf_metrics['f1']:.3f}  train_time={rf_metrics['train_time_sec']:.1f}s")
 
     print("\n=== XGBoost ===")
     xgb = XGBoostModel(n_estimators=300, random_state=42)
-    xgb_metrics = xgb.run(train_records, test_records, feature_cols, TARGET, logger=logger)
+    xgb_metrics = fit_and_eval(xgb, "XGBoost")
     results["XGBoost"] = xgb_metrics
     print(f"XGBoost: R2={xgb_metrics['r2']:.4f}  precision={xgb_metrics['precision']:.3f}  "
           f"recall={xgb_metrics['recall']:.3f}  f1={xgb_metrics['f1']:.3f}  train_time={xgb_metrics['train_time_sec']:.1f}s")
