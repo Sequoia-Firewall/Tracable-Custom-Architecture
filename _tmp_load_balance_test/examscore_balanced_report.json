@@ -1,0 +1,56 @@
+{
+  "reference_unbalanced": {
+    "r2": 0.7052,
+    "mae": 8.354,
+    "source": "TCA1.1.4/full_confirmation_multi_report.json (max_lr_scale=0.25)"
+  },
+  "balanced": {
+    "train_wall_time_sec": 4057.8,
+    "eval_wall_time_sec": 135.4,
+    "shard_results": [
+      {
+        "segment_id": 0,
+        "nexseg_path": "segment_0.nexseg",
+        "n_shards": 1,
+        "total_shard_train_time_sec": 3508.02
+      },
+      {
+        "segment_id": 1,
+        "nexseg_path": "segment_1.nexseg",
+        "n_shards": 1,
+        "total_shard_train_time_sec": 3408.76
+      },
+      {
+        "segment_id": 2,
+        "nexseg_path": "segment_2.nexseg",
+        "n_shards": 1,
+        "total_shard_train_time_sec": 3520.79
+      },
+      {
+        "segment_id": 3,
+        "nexseg_path": "segment_3.nexseg",
+        "n_shards": 1,
+        "total_shard_train_time_sec": 3885.14
+      }
+    ],
+    "test_metrics": {
+      "mae": 8.611846869467524,
+      "rmse": 10.712920230335808,
+      "r2": 0.6867571948274129,
+      "mape_pct": 16.2367808931012,
+      "acc_5_pct": 22.425,
+      "acc_10_pct": 43.1,
+      "acc_20_pct": 74.0,
+      "direction_acc_pct": 83.55,
+      "precision": 0.8131970260223048,
+      "recall": 0.872382851445663,
+      "f1": 0.8417508417508418,
+      "tp": 1750,
+      "fp": 402,
+      "fn": 256,
+      "tn": 1592,
+      "n": 4000
+    }
+  },
+  "elapsed_sec": 4193.5
+}
