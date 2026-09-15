@@ -1,0 +1,90 @@
+{
+  "run_mode": "train",
+  "dataset": {
+    "csv_path": "Exam_Score_Prediction.csv",
+    "target_column": "exam_score",
+    "ignored_columns": [
+      "student_id"
+    ],
+    "shuffle": true,
+    "prediction_range": {
+      "mode": "manual",
+      "min_value": 0,
+      "max_value": 100
+    }
+  },
+  "model": {
+    "max_x": 6,
+    "dimensions": 1,
+    "connection_percentage": 0.1,
+    "density": 0.8,
+    "training_mode": "partitioned",
+    "aggregation_mode": "bma",
+    "selection_percentage": 0.5
+  },
+  "training": {
+    "epoch_count": 20,
+    "judge_iterations": 20,
+    "judge_min_clusters": 4,
+    "judge_max_clusters": 20,
+    "test_split": 0.2,
+    "learning_rate": {
+      "mode": "manual-full",
+      "min_lr_scale": 0.5,
+      "max_lr_scale": 1.0,
+      "decay": 0.85
+    },
+    "grad_clip": {
+      "mode": "manual",
+      "value": 1
+    },
+    "delta_clip": {
+      "mode": "manual",
+      "value": 10
+    },
+    "reconnect_pct": 0.0,
+    "position_momentum": 0.0,
+    "feature_pruning_enabled": false
+  },
+  "logging": {
+    "log_level": 4,
+    "console_level": 4,
+    "filename_prefix": "TCA1.1.3_run"
+  },
+  "output": {
+    "save_pretrain_graph": false,
+    "pretrain_graph_path": "nexus_pretrain.png",
+    "save_posttrain_graph": false,
+    "posttrain_graph_path": "nexus_posttrain.png",
+    "visualization_enabled": false
+  },
+  "infer": {
+    "nexseg_dir": ".",
+    "sample_index": 0,
+    "loud": true,
+    "trace_enabled": false,
+    "trace_path": "trace.jsonl"
+  },
+  "comparison": {
+    "run_segment": true,
+    "run_system": true,
+    "run_linear": true,
+    "run_knn": true,
+    "run_rf": true,
+    "run_xgb": true,
+    "run_mlp": true,
+    "run_cnn": false,
+    "segment_max_x": [
+      5,
+      15,
+      25
+    ],
+    "system_max_x": [
+      5,
+      15,
+      25
+    ],
+    "epoch_count": 20,
+    "output_csv": "NetBenefit_results113.csv"
+  }
+}
