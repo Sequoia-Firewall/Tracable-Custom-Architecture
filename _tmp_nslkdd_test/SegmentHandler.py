@@ -1552,6 +1552,28 @@ class SegmentHandler:
         else:
             _run_epochs()
 
+        # Fallback save: "best epoch" is tracked by test_r2 improving, but
+        # test_r2 is NaN every epoch when this segment has no valid
+        # held-out test split to score against (too few assigned rows --
+        # `not math.isnan(test_r2) and test_r2 > best_test_r2` never fires
+        # on NaN), so best_epoch stays None and _save_nexseg() is never
+        # called at all -- no .nexseg file ever reaches disk, and callers
+        # that expect one (hot_swap_segment, SystemHandler's parallel
+        # training) fail afterward looking for a file that was never
+        # written. Save the final epoch's state unconditionally in that
+        # case rather than silently producing no checkpoint.
+        if best_epoch is None and epoch_history:
+            best_epoch    = epoch_history[-1]['epoch']
+            best_test_r2  = epoch_history[-1].get('test_r2', float('nan'))
+            best_test_err = epoch_history[-1].get('test_avg_error', float('nan'))
+            nexseg_path   = self._save_nexseg()
+            self.display(
+                f"No epoch had a valid held-out test R² to compare (too few assigned "
+                f"samples for a test split) — saving final epoch state unconditionally "
+                f"→ {nexseg_path}",
+                classification=3
+            )
+
         # ── Step 4: Prune unused nodes ────────────────────────────────
         self.display("Training Step 4: Pruning unused processing nodes.", classification=4)
         self._prune()

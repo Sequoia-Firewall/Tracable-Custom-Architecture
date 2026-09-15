@@ -35,8 +35,10 @@ COLS = [
     "label", "difficulty",
 ]
 
-MAX_X_VALUES = [5, 10, 15, 20]
-TRAIN_SAMPLE_SIZE = 40000
+MAX_X_VALUES = [5, 10, 15]  # trimmed from [5,10,15,20] -- calibration showed max_x=20
+                             # alone would dominate at ~5.6hr; this is meant to be the
+                             # cheap derisking test, not another marathon
+TRAIN_SAMPLE_SIZE = 20000
 DIMENSIONS = 2
 EPOCH_COUNT = 10
 JUDGE_ITERATIONS = 10
