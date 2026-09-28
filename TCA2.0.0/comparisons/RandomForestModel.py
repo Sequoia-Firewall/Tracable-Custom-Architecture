@@ -1,0 +1,128 @@
+"""
+comparisons/RandomForestModel.py
+----------------------------------
+sklearn RandomForestRegressor.  Strong tabular baseline — consistently
+competitive on structured data.  Uses n_jobs=-1 to exploit all cores.
+"""
+
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from comparisons.shared_metrics import compute_metrics
+
+try:
+    from sklearn.ensemble import RandomForestRegressor
+    _SKLEARN_OK = True
+except ImportError:
+    _SKLEARN_OK = False
+
+
+class RandomForestModel:
+    """Random Forest regression ensemble."""
+
+    MODEL_NAME = "RandomForest"
+
+    def __init__(self, n_estimators: int = 100, max_depth=None,
+                 min_samples_leaf: int = 1, random_state: int = 42):
+        if not _SKLEARN_OK:
+            raise ImportError("scikit-learn is required for RandomForestModel.")
+        self.n_estimators    = n_estimators
+        self.max_depth       = max_depth
+        self.min_samples_leaf = min_samples_leaf
+        self.random_state    = random_state
+        self.model = RandomForestRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            min_samples_leaf=min_samples_leaf,
+            random_state=random_state,
+            n_jobs=-1,
+        )
+
+    @property
+    def config_str(self) -> str:
+        return (f"n_estimators={self.n_estimators},"
+                f"max_depth={self.max_depth},"
+                f"min_samples_leaf={self.min_samples_leaf}")
+
+    def run(self, train_records: list, test_records: list,
+            feature_cols: list, target: str, logger=None) -> dict:
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _progress(desc, total=None, transient=True):
+            mp = getattr(logger, 'make_progress', None)
+            if mp:
+                with mp(transient=transient) as prog:
+                    task = prog.add_task(desc, total=total)
+                    yield prog, task
+            else:
+                yield None, None
+
+        def _log(msg):
+            full = f"[RandomForest]: {msg}"
+            if logger:
+                logger.log(full, 4, True)
+            else:
+                print(full)
+
+        # ── Build feature arrays ──────────────────────────────────────
+        n_total = len(train_records) + len(test_records)
+        _log(f"Building arrays — {n_total} samples, {len(feature_cols)} features…")
+        with _progress("[cyan]Building arrays…", total=n_total) as (prog, task):
+            X_train, y_train = [], []
+            for r in train_records:
+                X_train.append([float(r.get(f, 0)) for f in feature_cols])
+                y_train.append(float(r.get(target, 0)))
+                if prog: prog.update(task, advance=1)
+            X_test, y_test = [], []
+            for r in test_records:
+                X_test.append([float(r.get(f, 0)) for f in feature_cols])
+                y_test.append(float(r.get(target, 0)))
+                if prog: prog.update(task, advance=1)
+
+        # ── Fit ───────────────────────────────────────────────────────
+        _log(f"Fitting {self.n_estimators} trees on {len(X_train)} samples…")
+        t0 = time.time()
+        with _progress(
+            f"[yellow]Fitting RandomForest ({self.n_estimators} trees)…"
+        ) as _:
+            self.model.fit(X_train, y_train)
+        train_time = time.time() - t0
+        _log(f"Training complete in {train_time:.3f}s")
+
+        # ── Inference ─────────────────────────────────────────────────
+        _log(f"Running inference on {len(X_test)} test samples…")
+        t1 = time.time()
+        with _progress("[green]Inference…") as _:
+            preds = list(self.model.predict(X_test))
+        inference_time = time.time() - t1
+
+        pa = [(p, a) for p, a in zip(preds, y_test) if a != 0]
+        predictions = [p for p, _ in pa]
+        actuals     = [a for _, a in pa]
+
+        metrics = compute_metrics(predictions, actuals)
+        metrics.update({
+            'model_name':             self.MODEL_NAME,
+            'model_config':           self.config_str,
+            'n_train':                len(train_records),
+            'n_test':                 len(actuals),
+            'n_features':             len(feature_cols),
+            'target':                 target,
+            'epoch_count':            self.n_estimators,
+            'train_time_sec':         round(train_time, 4),
+            'inference_time_sec':     round(inference_time, 6),
+            'best_epoch':             '',
+            'best_test_error_pct':    '',
+            'related_train_error_pct':'',
+            'notes':                  f'feature_importances available',
+        })
+        _log(
+            f"MAE={metrics['mae']:.4f}  RMSE={metrics['rmse']:.4f}  "
+            f"R²={metrics['r2']:.4f}  MAPE={metrics['mape_pct']:.2f}%  "
+            f"Acc@10%={metrics['acc_10_pct']:.1f}%  F1={metrics['f1']:.4f}"
+        )
+        return metrics
