@@ -46,11 +46,26 @@ class FeedForward:
 
 
 class TransformerBlock:
-    def __init__(self, dim, n_heads, ffn_hidden_dim, rng):
+    def __init__(self, dim, n_heads, ffn_hidden_dim, rng, moe_cfg=None):
+        """
+        moe_cfg: None -> plain dense FeedForward (default). Otherwise a dict
+        {'n_experts', 'top_k', 'aux_loss_weight'} -- this block gets its OWN
+        independent SparseMoEFeedForward (own gate, own experts, trained
+        independently of every other block's). Local import to avoid a
+        circular import (moe.py imports FeedForward from this module).
+        """
         self.ln1 = LayerNorm(dim)
         self.attn = MultiHeadSelfAttention(dim, n_heads, rng)
         self.ln2 = LayerNorm(dim)
-        self.ffn = FeedForward(dim, ffn_hidden_dim, rng)
+        if moe_cfg is None:
+            self.ffn = FeedForward(dim, ffn_hidden_dim, rng)
+        else:
+            from moe import SparseMoEFeedForward
+            self.ffn = SparseMoEFeedForward(
+                dim, ffn_hidden_dim, moe_cfg["n_experts"], rng,
+                top_k=moe_cfg.get("top_k", 1),
+                aux_loss_weight=moe_cfg.get("aux_loss_weight", 0.01),
+            )
         self._cache = None
 
     def forward(self, x, trace=None):
@@ -97,15 +112,27 @@ class TransformerBlock:
 
 class GPTStyleTransformer:
     def __init__(self, vocab_size, dim, n_heads, n_layers, ffn_hidden_dim,
-                 max_seq_len, rng_seed=0):
+                 max_seq_len, rng_seed=0, moe_cfg=None):
+        """
+        moe_cfg: None -> every block uses a plain dense FeedForward (default,
+        unchanged behavior). Otherwise {'n_experts', 'top_k', 'aux_loss_weight'}
+        -- EVERY block gets a SparseMoEFeedForward, but each block's instance
+        is independently constructed (own gate, own experts, own weights) --
+        layers specialize differently by depth because they're genuinely
+        separate parameters, not because of any explicit per-layer design.
+        """
         rng = np.random.RandomState(rng_seed)
         self.rng = rng
         self.dim = dim
         self.max_seq_len = max_seq_len
+        self.moe_cfg = moe_cfg
 
         self.token_emb = Embedding(vocab_size, dim, rng)
         self.pos_emb = Embedding(max_seq_len, dim, rng)
-        self.blocks = [TransformerBlock(dim, n_heads, ffn_hidden_dim, rng) for _ in range(n_layers)]
+        self.blocks = [
+            TransformerBlock(dim, n_heads, ffn_hidden_dim, rng, moe_cfg=moe_cfg)
+            for _ in range(n_layers)
+        ]
         self.ln_f = LayerNorm(dim)
         self.head = Linear(dim, vocab_size, rng, bias=False)
 
