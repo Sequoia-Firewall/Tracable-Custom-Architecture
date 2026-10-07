@@ -61,3 +61,22 @@ class TraceRecorder:
                 "per_head_mean_entropy": per_head_mean_entropy.tolist(),
             })
         return summaries
+
+    def weight_update_summary(self):
+        """One row per (layer, param) with a 'weight_update' record for this
+        step -- grad/update/weight norms and their ratio. Covers every
+        parameterized layer (embeddings, every LayerNorm and Linear inside
+        every block, final LayerNorm, output head), not just attention/ffn."""
+        rows = []
+        for rec in self.records:
+            if rec["kind"] != "weight_update":
+                continue
+            rows.append({
+                "layer": rec["layer"],
+                "param": rec["param"],
+                "grad_norm": rec["grad_norm"],
+                "update_norm": rec["update_norm"],
+                "weight_norm": rec["weight_norm"],
+                "ratio": rec["ratio"],
+            })
+        return rows

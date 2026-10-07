@@ -53,11 +53,26 @@ if __name__ == "__main__":
         vocab_size=VOCAB_SIZE, dim=4, n_heads=1, n_layers=1, ffn_hidden_dim=8,
         max_seq_len=SEQ_LEN, rng_seed=3,
     )
-    expected_records_per_dump = len(model.blocks) * 2  # 1 attention + 1 feedforward record per block
+    forward_records_per_dump = len(model.blocks) * 2  # 1 attention + 1 feedforward record per block
+
+    # Every (layer, param) pair should get exactly one weight_update record --
+    # derive the expected set directly from the model rather than hardcoding
+    # a count, so this check actually fails loudly if a layer goes unnamed.
+    expected_layer_param_pairs = {
+        (name, param_name)
+        for name, layer in model.named_sublayers()
+        for param_name, param in layer.params().items()
+        if param is not None
+    }
+    expected_layer_names = {name for name, _ in expected_layer_param_pairs}
+    expected_records_per_dump = forward_records_per_dump + len(expected_layer_param_pairs)
 
     print(f"Tiny model: dim=4, 1 head, 1 layer. Task: predict token[i]=token[i-{DELAY}] "
           f"over vocab={VOCAB_SIZE}.")
-    print(f"Logging every {LOG_EVERY} steps to {TRACE_PATH}\n")
+    print(f"Logging every {LOG_EVERY} steps to {TRACE_PATH}")
+    print(f"Tracing {len(expected_layer_names)} named layers, "
+          f"{len(expected_layer_param_pairs)} (layer, param) pairs per step: "
+          f"{sorted(expected_layer_names)}\n")
 
     losses = []
     logged_steps = []
@@ -71,15 +86,21 @@ if __name__ == "__main__":
         trace = recorder if should_log else None
 
         loss, _ = model.loss_and_backward(inputs, targets, trace=trace)
-        model.sgd_step(LR)
+        model.sgd_step(LR, trace=trace)
         losses.append(loss)
 
         if should_log:
             assert len(recorder.records) == expected_records_per_dump, (
-                f"step {step}: expected {expected_records_per_dump} records in this "
-                f"forward pass, got {len(recorder.records)} -- recorder state may be "
+                f"step {step}: expected {expected_records_per_dump} records "
+                f"({forward_records_per_dump} forward + {len(expected_layer_param_pairs)} "
+                f"weight_update), got {len(recorder.records)} -- recorder state may be "
                 f"leaking across steps"
             )
+            actual_pairs = {
+                (r["layer"], r["param"]) for r in recorder.records if r["kind"] == "weight_update"
+            }
+            missing = expected_layer_param_pairs - actual_pairs
+            assert not missing, f"step {step}: these layers got NO weight-update trace: {missing}"
             recorder.dump_jsonl(TRACE_PATH, extra_meta={"step": step, "loss": float(loss)})
             logged_steps.append(step)
             recorder.reset()
@@ -148,5 +169,27 @@ if __name__ == "__main__":
     print(f"[PASS] logged attention entropy moved alongside training ({first_entropy:.4f} -> "
           f"{last_entropy:.4f}), confirming the trace reflects live model state, not frozen/stale data "
           f"-- direction isn't asserted since it isn't a reliable signature at this model size")
+
+    # ---------------- weight-update tracing: every named layer, not just attention/ffn ----------------
+    print(f"\n--- Verifying per-layer weight-update tracing ---")
+    for entry, step in zip(lines, logged_steps):
+        wu_records = [r for r in entry["records"] if r["kind"] == "weight_update"]
+        actual_pairs = {(r["layer"], r["param"]) for r in wu_records}
+        missing = expected_layer_param_pairs - actual_pairs
+        assert not missing, f"step {step}: dumped entry is missing weight-update records for {missing}"
+        for r in wu_records:
+            assert np.isfinite(r["update_norm"]) and np.isfinite(r["ratio"]), (
+                f"step {step}: non-finite weight-update stat for {r['layer']}.{r['param']}: {r}"
+            )
+    print(f"[PASS] every one of {len(expected_layer_param_pairs)} (layer, param) pairs has a "
+          f"finite weight-update record at every logged step, for all {len(lines)} dumps")
+
+    print(f"\n[INFO] per-layer update/weight ratio, step {logged_steps[0]} -> step {logged_steps[-1]}:")
+    first_wu = {(r["layer"], r["param"]): r["ratio"] for r in lines[0]["records"] if r["kind"] == "weight_update"}
+    last_wu = {(r["layer"], r["param"]): r["ratio"] for r in lines[-1]["records"] if r["kind"] == "weight_update"}
+    for layer_name in sorted(expected_layer_names):
+        param_names = sorted({p for (l, p) in expected_layer_param_pairs if l == layer_name})
+        for p in param_names:
+            print(f"    {layer_name:18s}.{p:6s}  ratio: {first_wu[(layer_name, p)]:.2e} -> {last_wu[(layer_name, p)]:.2e}")
 
     print("\nALL LOGGING-DURING-TRAINING CHECKS PASSED")

@@ -37,6 +37,9 @@ class FeedForward:
     def sublayers(self):
         return [self.fc1, self.fc2]
 
+    def named_sublayers(self):
+        return [("fc1", self.fc1), ("fc2", self.fc2)]
+
     def zero_grad(self):
         for layer in self.sublayers():
             layer.zero_grad()
@@ -79,6 +82,13 @@ class TransformerBlock:
 
     def sublayers(self):
         return [self.ln1, self.ln2] + self.attn.sublayers() + self.ffn.sublayers()
+
+    def named_sublayers(self):
+        attn_named = [(f"attn.{n}", l) for n, l in
+                      [("q_proj", self.attn.q_proj), ("k_proj", self.attn.k_proj),
+                       ("v_proj", self.attn.v_proj), ("out_proj", self.attn.out_proj)]]
+        ffn_named = [(f"ffn.{n}", l) for n, l in self.ffn.named_sublayers()]
+        return [("ln1", self.ln1)] + attn_named + [("ln2", self.ln2)] + ffn_named
 
     def zero_grad(self):
         for layer in self.sublayers():
@@ -134,22 +144,59 @@ class GPTStyleTransformer:
         return loss, logits
 
     def all_sublayers(self):
-        layers = [self.token_emb, self.pos_emb]
-        for block in self.blocks:
-            layers += block.sublayers()
-        layers += [self.ln_f, self.head]
+        return [layer for _, layer in self.named_sublayers()]
+
+    def named_sublayers(self):
+        """
+        (name, layer) for every parameterized layer in the model, in forward
+        order -- token/positional embeddings, every LayerNorm and Linear
+        inside every block (including ln1/ln2, not just attn/ffn), the
+        final LayerNorm, and the output head. Names are unique and stable
+        across calls, so weight-update tracing (sgd_step) can attribute
+        every parameter's update to exactly one named layer.
+        """
+        layers = [("token_emb", self.token_emb), ("pos_emb", self.pos_emb)]
+        for i, block in enumerate(self.blocks):
+            layers += [(f"block{i}.{n}", l) for n, l in block.named_sublayers()]
+        layers += [("ln_f", self.ln_f), ("head", self.head)]
         return layers
 
     def zero_grad(self):
         for layer in self.all_sublayers():
             layer.zero_grad()
 
-    def sgd_step(self, lr):
-        for layer in self.all_sublayers():
-            for name, param in layer.params().items():
+    def sgd_step(self, lr, trace=None):
+        """
+        Apply the SGD update to every parameter of every named layer. When
+        `trace` is given, records one 'weight_update' entry per parameter
+        (not per layer -- a Linear has both W and b, a LayerNorm both gamma
+        and beta, each updated and sized differently) BEFORE the update is
+        applied, so weight_norm reflects the pre-update value the update
+        was actually computed against.
+        """
+        for name, layer in self.named_sublayers():
+            for param_name, param in layer.params().items():
                 if param is None:
                     continue
-                param -= lr * layer.grads[name]
+                grad = layer.grads[param_name]
+                update = lr * grad
+                if trace is not None:
+                    update_norm = float(np.linalg.norm(update))
+                    weight_norm = float(np.linalg.norm(param))
+                    trace.record("weight_update", {
+                        "layer": name,
+                        "param": param_name,
+                        "grad_norm": float(np.linalg.norm(grad)),
+                        "update_norm": update_norm,
+                        "weight_norm": weight_norm,
+                        # update_norm / weight_norm: the standard "how big a
+                        # step relative to the parameter's own scale" sanity
+                        # check -- too large (>>1e-2) risks instability, too
+                        # small (<<1e-4) means this parameter is barely
+                        # moving regardless of what the loss is doing.
+                        "ratio": update_norm / (weight_norm + 1e-12),
+                    })
+                param -= update
 
     @staticmethod
     def sample_greedy(model, prompt_ids, n_new_tokens):
