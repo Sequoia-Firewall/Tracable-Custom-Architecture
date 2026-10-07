@@ -111,7 +111,7 @@ class GPTStyleTransformer:
 
         self._cache = None
 
-    def forward(self, token_ids, trace=None):
+    def forward(self, token_ids, trace=None, return_hidden=False):
         # token_ids: (batch, seq) int
         b, s = token_ids.shape
         assert s <= self.max_seq_len, f"sequence length {s} exceeds max_seq_len {self.max_seq_len}"
@@ -126,6 +126,12 @@ class GPTStyleTransformer:
         logits = self.head.forward(normed)
 
         self._cache = (b, s)
+        if return_hidden:
+            # normed: (batch, seq, dim), post-final-LN hidden state -- the
+            # DistributionJudge clusters normed[:, -1, :] (last-token hidden
+            # state), the exact vector the output head makes its prediction
+            # from.
+            return logits, normed
         return logits
 
     def backward(self, dlogits):
