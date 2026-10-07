@@ -58,7 +58,7 @@ def expert_usage(model, inputs):
     model.forward(inputs)
     usage = []
     for block in model.blocks:
-        _, _, mask, _, _, _, _ = block.ffn._cache
+        _, _, mask, *_ = block.ffn._cache
         usage.append(mask.mean(axis=(0, 1)))  # (n_experts,)
     return usage
 
@@ -103,8 +103,8 @@ if __name__ == "__main__":
 
     print("\n=== 3. Do the two layers' gates specialize DIFFERENTLY from each other? ===")
     model_aux.forward(eval_inputs)
-    _, _, mask0, _, _, _, _ = model_aux.blocks[0].ffn._cache
-    _, _, mask1, _, _, _, _ = model_aux.blocks[1].ffn._cache
+    _, _, mask0, *_ = model_aux.blocks[0].ffn._cache
+    _, _, mask1, *_ = model_aux.blocks[1].ffn._cache
     chosen0 = mask0.argmax(axis=-1)  # (batch, seq) -- top-1, so argmax of the one-hot mask is the chosen expert
     chosen1 = mask1.argmax(axis=-1)
     agreement = (chosen0 == chosen1).mean()

@@ -102,5 +102,64 @@ if __name__ == "__main__":
     num_gateW_aux = numeric_grad(f_gateW_aux, moe.gate.W.copy())
     all_pass &= check("MoE gate.dW (aux loss only)", analytic_gateW_aux, num_gateW_aux, tol=1e-3)
 
+    # ---------------- shared experts + outlier handling (Tier 2 additions) ----------------
+    print("\n=== Shared experts + outlier (noise) handling ===")
+    from judge import DistributionJudge
+
+    moe2 = SparseMoEFeedForward(dim=6, hidden_dim=10, n_experts=4, rng=rng, top_k=2,
+                                 aux_loss_weight=0.1, n_shared_experts=2,
+                                 route_noise_to_shared_only=True)
+    x2 = rng.normal(size=(2, 3, 6))
+    upstream2 = rng.normal(size=(2, 3, 6))
+
+    # Fit a tiny Judge directly on x2's own token vectors, with one token forced
+    # far away so it's guaranteed to be noise (cluster -1) -- this exercises the
+    # keep_mask=0 branch, not just the "no judge" default path.
+    flat_x2 = x2.reshape(-1, 6).copy()
+    flat_x2[0] += 1000.0  # force this one token into its own isolated region
+    judge2 = DistributionJudge(eps=2.0, min_samples=2)
+    judge2.fit(flat_x2)
+    moe2.attach_judge(judge2, prior_strength=0.5)
+
+    def f_x2(xv):
+        return (moe2.forward(xv) * upstream2).sum() + moe2.aux_loss_weight * moe2.last_aux_loss
+
+    moe2.forward(x2)
+    dx2 = moe2.backward(upstream2)
+    num_dx2 = numeric_grad(f_x2, x2.copy())
+    all_pass &= check("MoE+shared+outlier dx", dx2, num_dx2, tol=1e-3)
+
+    moe2.zero_grad()
+    moe2.forward(x2)
+    moe2.backward(upstream2)
+    shared0_fc1 = moe2.shared_experts[0].fc1
+    analytic_shared0 = shared0_fc1.grads["W"].copy()
+
+    def f_shared0W(Wv):
+        shared0_fc1.W = Wv
+        return (moe2.forward(x2) * upstream2).sum() + moe2.aux_loss_weight * moe2.last_aux_loss
+
+    num_shared0 = numeric_grad(f_shared0W, shared0_fc1.W.copy())
+    all_pass &= check("MoE shared_expert0.fc1.dW", analytic_shared0, num_shared0, tol=1e-3)
+
+    moe2.zero_grad()
+    moe2.forward(x2)
+    moe2.backward(upstream2)
+    analytic_gate2 = moe2.gate.grads["W"].copy()
+
+    def f_gate2W(Wv):
+        moe2.gate.W = Wv
+        return (moe2.forward(x2) * upstream2).sum() + moe2.aux_loss_weight * moe2.last_aux_loss
+
+    num_gate2 = numeric_grad(f_gate2W, moe2.gate.W.copy())
+    all_pass &= check("MoE gate.dW (with outlier masking active)", analytic_gate2, num_gate2, tol=1e-3)
+
+    # Sanity: confirm the outlier branch actually engaged (otherwise the check above
+    # isn't testing what it claims to).
+    _, _, _, _, keep_mask2, *_ = moe2._cache
+    n_outliers = int((keep_mask2 == 0.0).sum())
+    print(f"[{'PASS' if n_outliers > 0 else 'FAIL'}] outlier branch engaged for {n_outliers} token(s) in this check")
+    all_pass &= n_outliers > 0
+
     print("\n" + ("ALL MoE GRADIENT CHECKS PASSED" if all_pass else "SOME MoE CHECKS FAILED"))
     assert all_pass

@@ -65,6 +65,8 @@ class TransformerBlock:
                 dim, ffn_hidden_dim, moe_cfg["n_experts"], rng,
                 top_k=moe_cfg.get("top_k", 1),
                 aux_loss_weight=moe_cfg.get("aux_loss_weight", 0.01),
+                n_shared_experts=moe_cfg.get("n_shared_experts", 0),
+                route_noise_to_shared_only=moe_cfg.get("route_noise_to_shared_only", True),
             )
         self._cache = None
 

@@ -13,16 +13,24 @@ update_judge_bias_credit(), a proportional-credit rule matching
 ArchetypeRouter's (nudge toward whatever empirically reduced error
 relative to a per-cluster running baseline, not a hard assignment).
 
-Honest simplification: this computes EVERY expert's output for EVERY
-token (dense compute), then zeros out non-selected experts' contribution
-via the gating weights. A real production SMoE's speed win comes from
-only running the SELECTED experts per token -- that needs genuine
-per-token dynamic dispatch, which doesn't fit numpy's batched-array model
-without real engineering effort disproportionate to this being a small
-research/educational implementation. What's implemented here is the
-exact MATH of sparse gating (top-k selection, the same backward-pass
-asymmetry between selected/unselected experts, the same load-balancing
-loss) -- just not the compute saving.
+Two additions pulled from Data-Clustered Sparse Training (DCST, see
+top-level "Data-Clustered Sparse Training Across All Layers.md") after
+comparing it to this mechanism -- see TransformerArchitectureCustom/
+README.md for the full comparison and what was deliberately NOT adopted
+(real sparse compute, attention/conv partitioning, a single shared
+cluster map across all layers):
+  - n_shared_experts: always-active experts (DCST's "shared group",
+    also DeepSeekMoE's design) alongside the top-k ROUTED experts.
+  - route_noise_to_shared_only: DCST's dense-fallback-for-outliers idea,
+    adapted -- a token the Judge calls noise (-1, doesn't belong to any
+    dense training-data region) gets ZERO routed-expert weight, relying
+    only on the shared expert(s), instead of silently taking whatever
+    the unbiased gate happens to prefer.
+
+Honest simplification, unchanged: this computes EVERY expert's output
+for EVERY token (dense compute), then zeros out non-selected/non-shared
+contributions via gating weights. The real MATH of sparse gating, not
+the compute saving -- see README.
 """
 import numpy as np
 from layers import Linear, softmax, softmax_backward
@@ -30,13 +38,17 @@ from transformer import FeedForward
 
 
 class SparseMoEFeedForward:
-    def __init__(self, dim, hidden_dim, n_experts, rng, top_k=1, aux_loss_weight=0.01):
+    def __init__(self, dim, hidden_dim, n_experts, rng, top_k=1, aux_loss_weight=0.01,
+                 n_shared_experts=0, route_noise_to_shared_only=True):
         self.dim = dim
         self.n_experts = n_experts
         self.top_k = top_k
         self.aux_loss_weight = aux_loss_weight
+        self.n_shared_experts = n_shared_experts
+        self.route_noise_to_shared_only = route_noise_to_shared_only
 
         self.experts = [FeedForward(dim, hidden_dim, rng) for _ in range(n_experts)]
+        self.shared_experts = [FeedForward(dim, hidden_dim, rng) for _ in range(n_shared_experts)]
         self.gate = Linear(dim, n_experts, rng)
 
         self.judge = None
@@ -47,16 +59,31 @@ class SparseMoEFeedForward:
         self.last_aux_loss = 0.0
 
     # ---------------------------------------------------------------- judge wiring ----
-    def attach_judge(self, judge):
-        """judge: a fitted DistributionJudge, queried per-token against
-        this layer's FFN-input vectors (not necessarily the same Judge
-        instance used for confidence -- a Judge fit on THIS layer's input
+    def attach_judge(self, judge, prior_strength=0.0):
+        """
+        judge: a fitted DistributionJudge, queried per-token against this
+        layer's FFN-input vectors (not necessarily the same Judge instance
+        used for confidence -- a Judge fit on THIS layer's input
         distribution, since that's a different vector than the model's
-        final hidden state)."""
+        final hidden state).
+
+        prior_strength: 0.0 (default) -- judge_bias_table starts at zero,
+        matching the original design (specialization must emerge purely
+        from credit updates). > 0.0 -- DCST's "arbitrary assignment"
+        idea (4.3.1 in the proposal): cluster k starts with a strong bias
+        toward expert (k mod n_experts), and credit updates are free to
+        drift away from it if that's actually better. This tests DCST's
+        hypothesis directly inside this mechanism: does starting from a
+        hard cluster->expert prior and letting it adapt beat starting
+        from nothing?
+        """
         self.judge = judge
-        self.judge_bias_table = {
-            cid: np.zeros(self.n_experts) for cid in judge.cluster_population_summary()
-        }
+        self.judge_bias_table = {}
+        for cid in judge.cluster_population_summary():
+            bias = np.zeros(self.n_experts)
+            if prior_strength > 0.0 and cid != -1:
+                bias[cid % self.n_experts] = prior_strength
+            self.judge_bias_table[cid] = bias
 
     def update_judge_bias_credit(self, cluster_ids, chosen_experts, token_losses, lr=0.05, ema=0.9):
         """
@@ -98,7 +125,9 @@ class SparseMoEFeedForward:
         judge_bias, cluster_ids = self._judge_bias(x)
         logits = raw_logits if judge_bias is None else raw_logits + judge_bias
 
-        # top-k mask
+        # top-k mask (unaffected by outlier handling -- the gate still makes
+        # a real choice for every token; only how much weight that choice
+        # gets APPLIED with changes for outliers, see keep_mask below)
         topk_idx = np.argsort(-logits, axis=-1)[..., :self.top_k]  # (b, s, top_k)
         mask = np.zeros_like(logits, dtype=bool)
         np.put_along_axis(mask, topk_idx, True, axis=-1)
@@ -113,31 +142,58 @@ class SparseMoEFeedForward:
         aux_loss = self.n_experts * float(np.sum(frac_tokens * avg_prob))
         self.last_aux_loss = aux_loss
 
-        expert_outs = np.stack([e.forward(x, trace=trace) for e in self.experts], axis=-2)  # (b,s,n_experts,d)
-        output = (gate_weights[..., :, None] * expert_outs).sum(axis=-2)  # (b, s, d)
+        # Outlier handling: a noise-labeled token's routed-expert weight is
+        # zeroed entirely (not renormalized/redistributed -- just dropped),
+        # relying on the shared expert(s) alone. keep_mask is 1.0 everywhere
+        # when outlier handling doesn't apply (no judge, no shared experts,
+        # or disabled) -- fully backward compatible.
+        keep_mask = np.ones((b, s), dtype=np.float64)
+        if self.route_noise_to_shared_only and cluster_ids is not None and self.n_shared_experts > 0:
+            keep_mask = np.where(cluster_ids == -1, 0.0, 1.0)
+        effective_gate_weights = gate_weights * keep_mask[..., None]
 
-        self._cache = (x, logits, mask, gate_weights, full_probs, frac_tokens, expert_outs)
+        expert_outs = np.stack([e.forward(x, trace=trace) for e in self.experts], axis=-2)  # (b,s,n_experts,d)
+        routed_output = (effective_gate_weights[..., :, None] * expert_outs).sum(axis=-2)  # (b, s, d)
+
+        shared_output = np.zeros((b, s, d))
+        for se in self.shared_experts:
+            shared_output = shared_output + se.forward(x, trace=trace)
+        output = shared_output + routed_output
+
+        self._cache = (x, logits, mask, gate_weights, keep_mask, full_probs, frac_tokens, expert_outs)
 
         if trace is not None:
             trace.record("moe_gate", {
                 "expert_usage_frac": frac_tokens.tolist(),
                 "aux_loss": aux_loss,
                 "mean_top_gate_weight": float(gate_weights.max(axis=-1).mean()),
+                "outlier_frac": float(1.0 - keep_mask.mean()),
             })
 
         return output
 
     def backward(self, dout):
-        x, logits, mask, gate_weights, full_probs, frac_tokens, expert_outs = self._cache
+        x, logits, mask, gate_weights, keep_mask, full_probs, frac_tokens, expert_outs = self._cache
         b, s, d = x.shape
 
-        # --- gradient through the weighted sum ---
-        d_gate_weights = np.einsum("bsd,bsed->bse", dout, expert_outs)  # (b, s, n_experts)
-        d_expert_outs = gate_weights[..., :, None] * dout[..., None, :]  # (b, s, n_experts, d)
-
         dx = np.zeros_like(x)
+
+        # --- shared experts: unconditional, unscaled -- every one gets dout directly ---
+        for se in self.shared_experts:
+            dx += se.backward(dout)
+
+        # --- routed experts, through the (outlier-zeroed) effective gate weights ---
+        effective_gate_weights = gate_weights * keep_mask[..., None]
+        d_effective_gate_weights = np.einsum("bsd,bsed->bse", dout, expert_outs)  # (b, s, n_experts)
+        d_expert_outs = effective_gate_weights[..., :, None] * dout[..., None, :]  # (b, s, n_experts, d)
+
         for e, expert in enumerate(self.experts):
             dx += expert.backward(d_expert_outs[..., e, :])
+
+        # chain through the outlier keep_mask (a constant scale, same reasoning as the
+        # top-k mask itself: cluster_ids come from a non-differentiable nearest-neighbor
+        # lookup, so keep_mask is treated as locally constant, not backpropagated through)
+        d_gate_weights = d_effective_gate_weights * keep_mask[..., None]
 
         # --- gradient through top-k softmax (primary path: only selected experts get a nonzero term) ---
         d_logits_primary = softmax_backward(d_gate_weights, gate_weights)
@@ -159,12 +215,16 @@ class SparseMoEFeedForward:
         layers = [self.gate]
         for e in self.experts:
             layers += e.sublayers()
+        for se in self.shared_experts:
+            layers += se.sublayers()
         return layers
 
     def named_sublayers(self):
         named = [("gate", self.gate)]
         for i, e in enumerate(self.experts):
             named += [(f"expert{i}.{n}", l) for n, l in e.named_sublayers()]
+        for i, se in enumerate(self.shared_experts):
+            named += [(f"shared{i}.{n}", l) for n, l in se.named_sublayers()]
         return named
 
     def zero_grad(self):
