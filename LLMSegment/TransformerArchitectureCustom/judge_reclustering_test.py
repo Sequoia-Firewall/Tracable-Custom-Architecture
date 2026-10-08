@@ -8,7 +8,6 @@ Tests judge_reclustering.py at two levels:
      occur over time (not just always-apply or always-skip).
 """
 import numpy as np
-from judge import DistributionJudge
 from judge_reclustering import maybe_refit_judge
 from transformer import GPTStyleTransformer
 
@@ -27,19 +26,24 @@ def make_batch(rng, batch_size, seq_len, delay, vocab_size):
     return tokens[:, :-1], tokens[:, 1:]
 
 
-class FakeMoELayer:
-    """Minimal stand-in exposing exactly what maybe_refit_judge touches,
-    for the unit-level checks -- avoids needing a real trained model to
-    test the matching/carry-over logic in isolation."""
+class FakeJudgeLayer:
+    """Minimal stand-in exposing exactly what maybe_refit_judge touches
+    on the judge-layer side (.judge, .attach())."""
+    def __init__(self):
+        self.judge = None
+
+    def attach(self, judge):
+        self.judge = judge
+
+
+class FakeBiasConsumer:
+    """Minimal stand-in for a bias-table-holding consumer (e.g. a
+    SparseMoEFeedForward) -- avoids needing a real trained model to test
+    the matching/carry-over logic in isolation."""
     def __init__(self, n_experts=4):
         self.n_experts = n_experts
-        self.judge = None
         self.judge_bias_table = {}
         self.cluster_running_loss = {}
-
-    def attach_judge(self, judge, prior_strength=0.0):
-        self.judge = judge
-        self.judge_bias_table = {cid: np.zeros(self.n_experts) for cid in judge.cluster_population_summary()}
 
 
 if __name__ == "__main__":
@@ -47,38 +51,41 @@ if __name__ == "__main__":
     rng = np.random.RandomState(0)
 
     print("=== 1a. Cold start: first fit always applies ===")
-    layer = FakeMoELayer()
+    judge_layer = FakeJudgeLayer()
+    consumer = FakeBiasConsumer()
     centers = np.array([[0.0, 0.0], [10.0, 0.0], [0.0, 10.0]])
     blob = lambda: np.concatenate([c + rng.normal(0, 0.1, size=(30, 2)) for c in centers])
     vectors_v1 = blob()
-    result = maybe_refit_judge(layer, vectors_v1, eps=1.0, min_samples=5)
+    result = maybe_refit_judge(judge_layer, [consumer], vectors_v1, eps=1.0, min_samples=5)
     print(f"  {result}")
     ok = result["applied"] and result["ami"] is None
     print(f"[{'PASS' if ok else 'FAIL'}] cold start applied, no ami to report")
     all_pass &= ok
 
-    # manually set some bias values to check carry-over later
-    for cid in layer.judge_bias_table:
-        layer.judge_bias_table[cid] = np.full(4, float(cid) + 1.0)
-    bias_before = {k: v.copy() for k, v in layer.judge_bias_table.items()}
+    # cold start doesn't populate the consumer's table on its own (that
+    # happens lazily on first use in SparseMoEFeedForward._bias_row) --
+    # seed it manually here to check carry-over below.
+    for cid in judge_layer.judge.cluster_population_summary():
+        consumer.judge_bias_table[cid] = np.full(4, float(cid) + 1.0)
+    bias_before = {k: v.copy() for k, v in consumer.judge_bias_table.items()}
 
     print("\n=== 1b. Pure relabeling (same data, same structure) -> should SKIP ===")
     # Same vectors, re-fit again -- DBSCAN is deterministic given the same
     # data/params, so this isn't even a relabeling, it's identical. Should
     # trivially show near-zero change and get skipped.
-    result2 = maybe_refit_judge(layer, vectors_v1, eps=1.0, min_samples=5)
+    result2 = maybe_refit_judge(judge_layer, [consumer], vectors_v1, eps=1.0, min_samples=5)
     print(f"  {result2}")
     ok = not result2["applied"] and result2["ami"] > 0.95
     print(f"[{'PASS' if ok else 'FAIL'}] identical re-fit correctly skipped (stability guard working)")
     all_pass &= ok
-    unchanged = all(np.array_equal(layer.judge_bias_table[k], bias_before[k]) for k in bias_before)
+    unchanged = all(np.array_equal(consumer.judge_bias_table[k], bias_before[k]) for k in bias_before)
     print(f"[{'PASS' if unchanged else 'FAIL'}] bias table untouched after a skipped refit")
     all_pass &= unchanged
 
     print("\n=== 1c. Genuine shift (new 4th blob appears) -> should APPLY + carry over ===")
     centers_v2 = np.array([[0.0, 0.0], [10.0, 0.0], [0.0, 10.0], [-10.0, -10.0]])
     vectors_v2 = np.concatenate([c + rng.normal(0, 0.1, size=(30, 2)) for c in centers_v2])
-    result3 = maybe_refit_judge(layer, vectors_v2, eps=1.0, min_samples=5)
+    result3 = maybe_refit_judge(judge_layer, [consumer], vectors_v2, eps=1.0, min_samples=5)
     print(f"  {result3}")
     ok = result3["applied"] and result3["ami"] < 0.95
     print(f"[{'PASS' if ok else 'FAIL'}] genuine shift correctly triggered an applied refit")
@@ -96,9 +103,9 @@ if __name__ == "__main__":
     # distance-thresholded match would fix this if it matters in
     # practice; not implemented since the credit-update mechanism keeps
     # adjusting from there regardless.
-    carried_nonzero = [cid for cid, b in layer.judge_bias_table.items() if np.any(b != 0)]
+    carried_nonzero = [cid for cid, b in consumer.judge_bias_table.items() if np.any(b != 0)]
     print(f"  clusters with carried-over (nonzero) bias: {carried_nonzero} "
-          f"out of {list(layer.judge_bias_table.keys())}")
+          f"out of {list(consumer.judge_bias_table.keys())}")
     ok = len(carried_nonzero) >= 3
     print(f"[{'PASS' if ok else 'FAIL'}] at least 3 of the original clusters carried nonzero bias forward")
     all_pass &= ok
@@ -128,7 +135,8 @@ if __name__ == "__main__":
             sample = flat[:150]
             pairwise = np.linalg.norm(sample[:, None, :] - sample[None, :, :], axis=-1)
             median_dist = np.median(pairwise[np.triu_indices(len(sample), k=1)])
-            r = maybe_refit_judge(model.blocks[0].ffn, flat, eps=max(median_dist * 0.4, 1e-3), min_samples=10)
+            r = maybe_refit_judge(model.blocks[0].judge_layer, [model.blocks[0].ffn], flat,
+                                   eps=max(median_dist * 0.4, 1e-3), min_samples=10)
             if r["applied"]:
                 applied_count += 1
             else:

@@ -102,7 +102,8 @@ if __name__ == "__main__":
     flat[0] += 1000.0  # guarantee at least one real outlier
     judge = DistributionJudge(eps=2.0, min_samples=2)
     judge.fit(flat)
-    model2.blocks[0].ffn.attach_judge(judge, prior_strength=0.3)
+    model2.blocks[0].ffn.prior_strength = 0.3
+    model2.blocks[0].judge_layer.attach(judge)
 
     def loss_fn2(m, t, y):
         return loss_fn(m, t, y)  # same aux-loss-inclusive scalar, reused for this model

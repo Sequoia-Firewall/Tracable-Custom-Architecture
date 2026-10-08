@@ -98,7 +98,8 @@ def run_config(name, judge_mode, prior_strength, seed=7):
             shuffle_rng = np.random.RandomState(seed + 1000)
             judge.labels_ = shuffle_rng.permutation(judge.labels_)  # same sizes, random assignment
 
-        model.blocks[0].ffn.attach_judge(judge, prior_strength=prior_strength)
+        model.blocks[0].ffn.prior_strength = prior_strength
+        model.blocks[0].judge_layer.attach(judge)
 
     for _ in range(N_CONTINUE):
         inputs, targets = make_batch(rng, BATCH_SIZE, SEQ_LEN, DELAY, VOCAB_SIZE)
@@ -111,7 +112,7 @@ def run_config(name, judge_mode, prior_strength, seed=7):
             token_losses = per_token_loss(fresh_logits, targets)
             x_batch, _, mask, *_ = model.blocks[0].ffn._cache
             chosen = mask.argmax(axis=-1)
-            _, cluster_ids = model.blocks[0].ffn._judge_bias(x_batch)
+            cluster_ids = model.blocks[0].judge_layer.forward(x_batch)
             model.blocks[0].ffn.update_judge_bias_credit(
                 cluster_ids.flatten(), chosen.flatten(), token_losses.flatten(), lr=0.1,
             )

@@ -1,9 +1,16 @@
 """
-Periodic reclustering for a Judge attached to a SparseMoEFeedForward,
-adapted from DCST section 4.7 -- scoped deliberately to the MoE-bias
-Judge, not the confidence Judge (see README: the confidence Judge wants
-to describe the FINAL, stable model; the MoE-bias Judge actively shapes
-training, same genre as DCST's problem, so it's the one that should move).
+Periodic reclustering for a JudgeLayer, adapted from DCST section 4.7 --
+scoped deliberately to the MoE-bias Judge, not the confidence Judge (see
+README: the confidence Judge wants to describe the FINAL, stable model;
+the MoE-bias Judge actively shapes training, same genre as DCST's
+problem, so it's the one that should move).
+
+Operates on a JudgeLayer (shared cluster-computation infrastructure, see
+judge_layer.py) plus a list of "bias consumers" -- objects with their own
+judge_bias_table/cluster_running_loss/n_experts (today just a single
+SparseMoEFeedForward; the split exists so a future attention-expert
+consumer sharing the same JudgeLayer gets its OWN warm-started table
+rather than clobbering the FFN's).
 
 Two explicit simplifications from DCST's literal recipe, stated here
 rather than silently assumed:
@@ -55,14 +62,21 @@ def _nearest_centroid_match(old_centroids, new_centroids):
     return match
 
 
-def maybe_refit_judge(moe_layer, probe_vectors, eps, min_samples, min_ami_drop=0.05, rng_seed=None):
+def maybe_refit_judge(judge_layer, bias_consumers, probe_vectors, eps, min_samples,
+                       min_ami_drop=0.05, rng_seed=None):
     """
     Fits a candidate Judge on probe_vectors; applies it (replacing
-    moe_layer.judge, warm-starting judge_bias_table via nearest-centroid
-    matching) only if the new clustering's structure has actually
-    diverged from the old one -- DCST's stability guard against
+    judge_layer.judge, warm-starting each consumer's judge_bias_table via
+    nearest-centroid matching) only if the new clustering's structure has
+    actually diverged from the old one -- DCST's stability guard against
     thrashing on noise, adapted to detect real structural change rather
     than relabeling.
+
+    judge_layer: a JudgeLayer (see judge_layer.py). bias_consumers: list
+    of objects each with judge_bias_table/cluster_running_loss/n_experts
+    (e.g. a block's SparseMoEFeedForward) -- each gets its OWN warm-started
+    table, since different consumers may prefer different experts for the
+    same cluster.
 
     Change detection uses Adjusted Mutual Information between the OLD
     judge's labels and the NEW judge's labels, both queried against the
@@ -85,11 +99,11 @@ def maybe_refit_judge(moe_layer, probe_vectors, eps, min_samples, min_ami_drop=0
     candidate = DistributionJudge(eps=eps, min_samples=min_samples)
     candidate.fit(probe_vectors)
 
-    if moe_layer.judge is None or not moe_layer.judge._fitted:
-        moe_layer.attach_judge(candidate)
+    if judge_layer.judge is None or not judge_layer.judge._fitted:
+        judge_layer.attach(candidate)
         return {"applied": True, "ami": None, "n_clusters": len(candidate.cluster_population_summary())}
 
-    old_judge = moe_layer.judge
+    old_judge = judge_layer.judge
     _, old_labels, _ = old_judge.query_batch(probe_vectors)
     _, new_labels, _ = candidate.query_batch(probe_vectors)
 
@@ -103,20 +117,19 @@ def maybe_refit_judge(moe_layer, probe_vectors, eps, min_samples, min_ami_drop=0
     match = _nearest_centroid_match(old_centroids, new_centroids)  # new_cid -> old_cid, used ONLY
     # for warm-starting bias values below -- a heuristic carry-over, not the change-detection signal.
 
-    old_table = moe_layer.judge_bias_table
-    old_running_loss = moe_layer.cluster_running_loss
-    carried_table = {}
-    carried_running_loss = {}
-    for new_cid in candidate.cluster_population_summary():
-        old_cid = match.get(new_cid, None)
-        carried_table[new_cid] = old_table.get(old_cid, np.zeros(moe_layer.n_experts)).copy() \
-            if old_cid is not None else np.zeros(moe_layer.n_experts)
-        # cluster_running_loss is intentionally NOT carried (see module docstring) --
-        # fresh baseline under the new mapping, bias values ARE carried.
+    for consumer in bias_consumers:
+        old_table = consumer.judge_bias_table
+        carried_table = {}
+        for new_cid in candidate.cluster_population_summary():
+            old_cid = match.get(new_cid, None)
+            carried_table[new_cid] = old_table.get(old_cid, np.zeros(consumer.n_experts)).copy() \
+                if old_cid is not None else np.zeros(consumer.n_experts)
+            # cluster_running_loss is intentionally NOT carried (see module docstring) --
+            # fresh baseline under the new mapping, bias values ARE carried.
+        consumer.judge_bias_table = carried_table
+        consumer.cluster_running_loss = {}
 
-    moe_layer.judge = candidate
-    moe_layer.judge_bias_table = carried_table
-    moe_layer.cluster_running_loss = {}
+    judge_layer.judge = candidate
 
     return {"applied": True, "ami": ami,
             "n_clusters": len(candidate.cluster_population_summary())}

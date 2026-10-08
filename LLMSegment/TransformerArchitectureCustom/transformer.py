@@ -17,7 +17,11 @@ class FeedForward:
         self.act = GELU()
         self.fc2 = Linear(hidden_dim, dim, rng)
 
-    def forward(self, x, trace=None):
+    def forward(self, x, trace=None, cluster_ids=None):
+        # cluster_ids accepted-but-unused -- interface parity with
+        # SparseMoEFeedForward.forward() so TransformerBlock can call
+        # self.ffn.forward(x, trace=trace, cluster_ids=cluster_ids)
+        # uniformly regardless of which concrete FFN type it's holding.
         h = self.fc1.forward(x)
         a = self.act.forward(h)
         out = self.fc2.forward(a)
@@ -57,17 +61,29 @@ class TransformerBlock:
         self.ln1 = LayerNorm(dim)
         self.attn = MultiHeadSelfAttention(dim, n_heads, rng)
         self.ln2 = LayerNorm(dim)
+        self.judge_layer = None
         if moe_cfg is None:
             self.ffn = FeedForward(dim, ffn_hidden_dim, rng)
         else:
             from moe import SparseMoEFeedForward
+            from judge_layer import JudgeLayer
             self.ffn = SparseMoEFeedForward(
                 dim, ffn_hidden_dim, moe_cfg["n_experts"], rng,
                 top_k=moe_cfg.get("top_k", 1),
                 aux_loss_weight=moe_cfg.get("aux_loss_weight", 0.01),
                 n_shared_experts=moe_cfg.get("n_shared_experts", 0),
                 route_noise_to_shared_only=moe_cfg.get("route_noise_to_shared_only", True),
+                use_reviewer=moe_cfg.get("use_reviewer", False),
+                prior_strength=moe_cfg.get("prior_strength", 0.0),
             )
+            # Always created (cheap, no-op until attach()'d) rather than only
+            # when the caller plans to use a judge -- so a judge can be
+            # attached after construction (e.g. once training has produced
+            # stable representations to fit on) without restructuring the
+            # block. See judge_layer.py for why cluster COMPUTATION lives
+            # here (shared across future consumers) while the FFN's own
+            # learned PREFERENCE per cluster stays on the FFN itself.
+            self.judge_layer = JudgeLayer()
         self._cache = None
 
     def forward(self, x, trace=None):
@@ -76,7 +92,8 @@ class TransformerBlock:
         res1 = x + attn_out
 
         normed2 = self.ln2.forward(res1)
-        ffn_out = self.ffn.forward(normed2, trace=trace)
+        cluster_ids = self.judge_layer.forward(normed2, trace=trace) if self.judge_layer is not None else None
+        ffn_out = self.ffn.forward(normed2, trace=trace, cluster_ids=cluster_ids)
         res2 = res1 + ffn_out
 
         self._cache = True

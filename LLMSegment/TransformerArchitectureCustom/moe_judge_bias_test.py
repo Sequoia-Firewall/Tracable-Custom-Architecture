@@ -69,7 +69,7 @@ if __name__ == "__main__":
     judge.fit(flat_vectors)
     print(f"  cluster population: {judge.cluster_population_summary()}")
 
-    model.blocks[0].ffn.attach_judge(judge)
+    model.blocks[0].judge_layer.attach(judge)
     bias_table_before = {k: v.copy() for k, v in model.blocks[0].ffn.judge_bias_table.items()}
 
     # ---- run several credit-update rounds using real per-token loss ----
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
         x_batch, _, mask, *_ = model.blocks[0].ffn._cache
         chosen_experts = mask.argmax(axis=-1)
-        _, cluster_ids = model.blocks[0].ffn._judge_bias(x_batch)
+        cluster_ids = model.blocks[0].judge_layer.forward(x_batch)
 
         model.blocks[0].ffn.update_judge_bias_credit(
             cluster_ids.flatten(), chosen_experts.flatten(), token_losses.flatten(), lr=0.1,
@@ -104,12 +104,12 @@ if __name__ == "__main__":
     _, _, mask_with_bias, *_ = model.blocks[0].ffn._cache
     chosen_with_bias = mask_with_bias.argmax(axis=-1)
 
-    saved_judge = model.blocks[0].ffn.judge
-    model.blocks[0].ffn.judge = None  # temporarily disable
+    saved_judge = model.blocks[0].judge_layer.judge
+    model.blocks[0].judge_layer.judge = None  # temporarily disable
     model.forward(test_inputs)
     _, _, mask_without_bias, *_ = model.blocks[0].ffn._cache
     chosen_without_bias = mask_without_bias.argmax(axis=-1)
-    model.blocks[0].ffn.judge = saved_judge
+    model.blocks[0].judge_layer.judge = saved_judge
 
     frac_changed = (chosen_with_bias != chosen_without_bias).mean()
     print(f"[{'PASS' if frac_changed > 0 else 'FAIL'}] judge bias changed routing for "
